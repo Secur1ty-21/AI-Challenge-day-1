@@ -1,0 +1,11 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+/app/src/main/res/raw/russian_trusted_root_ca.cer
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
