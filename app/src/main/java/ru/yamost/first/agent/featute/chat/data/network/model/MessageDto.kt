@@ -2,6 +2,7 @@ package ru.yamost.first.agent.featute.chat.data.network.model
 
 import com.google.gson.annotations.SerializedName
 import ru.yamost.first.agent.featute.chat.domain.model.Message
+import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 
 class MessageDto(
     @SerializedName("content")
@@ -13,17 +14,14 @@ class MessageDto(
 fun MessageDto.mapToDomain(): Message {
     return Message(
         text = text,
-        isUser = MessageRole.findByApiLabel(role) == MessageRole.USER
+        role = MessageRole.findByApiLabel(role),
+        timestamp = System.currentTimeMillis()
     )
 }
 
 fun Message.mapToData(): MessageDto {
     return MessageDto(
         text = text,
-        role = if (isUser) {
-            MessageRole.USER.apiLabel
-        } else {
-            MessageRole.ASSISTANT.apiLabel
-        }
+        role = role.apiLabel
     )
 }

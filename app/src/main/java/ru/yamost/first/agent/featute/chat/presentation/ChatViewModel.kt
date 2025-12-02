@@ -1,18 +1,20 @@
 package ru.yamost.first.agent.featute.chat.presentation
 
 import android.util.Log
-import androidx.lifecycle.ViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import ru.yamost.first.agent.core.domain.YaResult
 import ru.yamost.first.agent.core.presentation.BaseViewModel
 import ru.yamost.first.agent.featute.chat.domain.model.Message
+import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAnswerUseCase
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatAction
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatEvent
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatState
 import ru.yamost.first.agent.featute.chat.presentation.model.MessageUi
+import java.text.SimpleDateFormat
+import java.util.Date
 
 class ChatViewModel(
     private val getAnswerUseCase: GetAnswerUseCase
@@ -37,7 +39,8 @@ class ChatViewModel(
                     block = {
                         val message = MessageUi(
                             text = _state.value.input,
-                            isUser = true
+                            role = MessageRole.USER,
+                            timestamp = sdf.format(System.currentTimeMillis())
                         )
                          val newStory = _state.value.story.toMutableList().apply {
                              add(message)
@@ -65,29 +68,43 @@ class ChatViewModel(
                             }
 
                             is YaResult.Failure -> {
+                                _state.update {
+                                    it.copy(
+                                        isLoading = false
+                                    )
+                                }
                                 Log.v(TAG, "failure get answer result")
                             }
                         }
                     },
                     onError = { error ->
                         Log.e(TAG, "error in obtain btn send click", error)
+                        _state.update {
+                            it.copy(
+                                isLoading = false
+                            )
+                        }
                     }
                 )
             }
         }
     }
 
+    private val sdf = SimpleDateFormat("dd.MM HH:mm")
+
     private fun Message.mapToUi(): MessageUi {
         return MessageUi(
             text = text,
-            isUser = isUser
+            role = role,
+            timestamp = sdf.format(Date(timestamp))
         )
     }
 
     private fun MessageUi.mapToDomain(): Message {
         return Message(
             text = text,
-            isUser = isUser
+            role = role,
+            timestamp = sdf.parse(timestamp)?.time ?: System.currentTimeMillis()
         )
     }
 

@@ -1,6 +1,7 @@
 package ru.yamost.first.agent.featute.chat.di
 
 import android.content.Context
+import com.google.gson.Gson
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import org.koin.android.ext.koin.androidContext
@@ -10,10 +11,12 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import ru.yamost.first.agent.BuildConfig
 import ru.yamost.first.agent.R
-import ru.yamost.first.agent.featute.chat.data.CharRepositoryImpl
+import ru.yamost.first.agent.featute.chat.data.ChatRepositoryImpl
 import ru.yamost.first.agent.featute.chat.data.network.AuthService
-import ru.yamost.first.agent.featute.chat.data.network.GptService
+import ru.yamost.first.agent.featute.chat.data.network.GigaService
+import ru.yamost.first.agent.featute.chat.data.storage.TokenRepositoryImpl
 import ru.yamost.first.agent.featute.chat.domain.api.ChatRepository
+import ru.yamost.first.agent.featute.chat.domain.api.TokenRepository
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAnswerUseCase
 import ru.yamost.first.agent.featute.chat.presentation.ChatViewModel
 import java.security.KeyStore
@@ -71,7 +74,7 @@ val chatModule = module {
             .create(AuthService::class.java)
     }
 
-    single<GptService> {
+    single<GigaService> {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.BODY
@@ -90,13 +93,26 @@ val chatModule = module {
             .addConverterFactory(GsonConverterFactory.create())
             .client(client)
             .build()
-            .create(GptService::class.java)
+            .create(GigaService::class.java)
+    }
+
+    single {
+        Gson()
+    }
+
+    single<TokenRepository> {
+        TokenRepositoryImpl(
+            appDir = androidContext().dataDir,
+            gson = get()
+        )
     }
 
     single<ChatRepository> {
-        CharRepositoryImpl(
+        ChatRepositoryImpl(
             authService = get(),
-            gptService = get()
+            gigaService = get(),
+            tokenRepository = get(),
+            appDir = androidContext().filesDir
         )
     }
 

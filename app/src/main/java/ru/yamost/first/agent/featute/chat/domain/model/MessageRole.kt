@@ -1,4 +1,4 @@
-package ru.yamost.first.agent.featute.chat.data.network.model
+package ru.yamost.first.agent.featute.chat.domain.model
 
 enum class MessageRole(val apiLabel: String) {
     SYSTEM("system"),
