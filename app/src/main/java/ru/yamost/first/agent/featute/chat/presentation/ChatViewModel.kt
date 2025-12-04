@@ -35,6 +35,9 @@ class ChatViewModel(
             }
 
             is ChatEvent.BtnSendClick -> {
+                if (_state.value.input.isBlank()) {
+                    return
+                }
                 runSafely(
                     block = {
                         val message = MessageUi(

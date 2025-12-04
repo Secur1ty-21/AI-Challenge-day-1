@@ -27,7 +27,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -68,7 +67,7 @@ private fun ChatScreen(
             .padding(top = 20.dp, start = 8.dp, end = 8.dp, bottom = 8.dp)
     ) {
         LazyColumn(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
+            modifier = Modifier.padding(top = 20.dp).weight(1f).fillMaxWidth(),
             reverseLayout = true
         ) {
             items(state.story.reversed()) { message ->
