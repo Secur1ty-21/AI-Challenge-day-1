@@ -8,7 +8,6 @@ import ru.yamost.first.agent.featute.chat.data.network.model.AiModelDto
 import ru.yamost.first.agent.featute.chat.data.network.model.GetAccessTokenResponse
 import ru.yamost.first.agent.featute.chat.data.network.model.GetAnswerRequest
 import ru.yamost.first.agent.featute.chat.data.network.model.MessageDto
-import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import ru.yamost.first.agent.featute.chat.data.network.model.mapToData
 import ru.yamost.first.agent.featute.chat.data.network.model.mapToDomain
 import ru.yamost.first.agent.featute.chat.data.storage.Installation
@@ -16,6 +15,7 @@ import ru.yamost.first.agent.featute.chat.domain.api.ChatRepository
 import ru.yamost.first.agent.featute.chat.domain.api.TokenRepository
 import ru.yamost.first.agent.featute.chat.domain.model.AccessTokenData
 import ru.yamost.first.agent.featute.chat.domain.model.Message
+import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import java.io.File
 import java.util.UUID
 
@@ -32,13 +32,6 @@ class ChatRepositoryImpl(
             is YaResult.Success -> tokenResult.data
             is YaResult.Failure -> return YaResult.Failure(Unit)
         }
-        val aiModelList = when (val getModelsResult = sendAiModelListRequest(tokenData.token)) {
-            is YaResult.Success -> getModelsResult.data
-            is YaResult.Failure -> return YaResult.Failure(Unit)
-        }
-        for (model in aiModelList) {
-            Log.v(TAG, "ModelName = ${model.name}")
-        }
         val getAnswerResponse = runCatching {
             gigaService.getAnswer(
                 bearerToken = BEARER_FORMAT.format(tokenData.token),
@@ -46,7 +39,11 @@ class ChatRepositoryImpl(
                     messageList = messageList.map {
                         it.mapToData()
                     }.toMutableList().apply {
-                        add(0, getOutputSystemPrompt())
+                        if (size < 4) {
+                            add(0, getHelperSystemPrompt())
+                        } else {
+                            add(0, getCookingSystemPrompt())
+                        }
                     }
                 ),
                 clientId = Installation.id(appDir),
@@ -112,6 +109,55 @@ class ChatRepositoryImpl(
         } else {
             YaResult.Failure(Unit)
         }
+    }
+
+    private fun getHelperSystemPrompt(): MessageDto {
+        val roleState = "Ты учитель по составлению промптов."
+        val task = "Задача: Для более качественного ответа помочь составить промт пользователю."
+        val outputFormat = "Для дачи конечного ответа тебе обязательно нужно получить от пользователя инфомарцию по всем 5 пунктам:" +
+                "1. указана чёткая роль в которой нужно отвечать в сообщениях пользователя." +
+                "2. есть детальное описание задачи (> 50 символов) в сообщениях пользователя." +
+                "3. есть контекст в сообщениях пользователя." +
+                "4. есть примеры в сообщениях пользователя." +
+                "5. указан формат ответа в сообщениях пользователя." +
+                "Формат ответа: Задай ровно один наводящий вопрос, чтобы получить информацию по одному из пунтов выше." +
+                "Опираться на пункты выше в вопросе обязательно." +
+                "В конце сообщения добавь номер пункта из списка выше для уточнения которого задаешь вопрос."
+        val sample = "Пример. Сообщение пользователя: Помоги выбрать игрушку." +
+                "Ответ: В какой роли требуется ответить? 1" +
+                "Сообщение пользователя: В роли консультанта" +
+                "Ответ: Опишите вашу задачу детальнее, цена, место покупки, категория игрушки? 1 из 5" +
+                "Сообщение пользователя: до 1000, детский магазин, машинка." +
+                "Ответ: Опишите человека для которого покупаете? 2"
+
+        val message = roleState + task + outputFormat + sample
+        Log.v(TAG, "helper prompt lenght = ${message.length}")
+        return MessageDto(
+            text = message,
+            role = MessageRole.SYSTEM.apiLabel
+        )
+    }
+
+    private fun getCookingSystemPrompt(): MessageDto {
+        val roleState = "Ты шеф повар в хорошем ресторане с итальянским акцентом."
+        val task = "Задача: Помочь пользователю составить необычное меню на свой праздник." +
+         "Постарайся избегать в выборе продуктов аллергенов."
+        val outputFormat = "Для дачи конечного ответа тебе обязательно нужно получить от пользователя инфомарцию по всем 4 пунктам:" +
+                "1. Кол-во блюд." +
+                "2. Кол-во гостей." +
+                "3. Кухня мира." +
+                "4. Предпочтения гостей." +
+                "Формат ответа: Задай ровно один наводящий вопрос, чтобы получить информацию по одному из пунтов выше." +
+                "Опираться на пункты выше в вопросе обязательно." +
+                "В конце сообщения добавь номер пункта из списка выше для уточнения которого задаешь вопрос." +
+                "Если сообщение пользователя никак не относится к готовке, сообщи ему для чего он тут." +
+                "Если ответ конечный: Напиши напротив каждого пункта инфомарцию полученную от пользователя"
+        val message = roleState + task + outputFormat
+        Log.v(TAG, "cooking prompt lenght = ${message.length}")
+        return MessageDto(
+            text = message,
+            role = MessageRole.SYSTEM.apiLabel
+        )
     }
 
     private fun getOutputSystemPrompt(): MessageDto {

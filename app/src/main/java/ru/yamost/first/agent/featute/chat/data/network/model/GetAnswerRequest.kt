@@ -10,7 +10,7 @@ class GetAnswerRequest(
     @SerializedName("updateInterval")
     val updateInterval: Int = 0,
     @SerializedName("max_tokens")
-    val maxTokens: Int = 200,
+    val maxTokens: Int = 500,
     @SerializedName("messages")
     val messageList: List<MessageDto>
 )
