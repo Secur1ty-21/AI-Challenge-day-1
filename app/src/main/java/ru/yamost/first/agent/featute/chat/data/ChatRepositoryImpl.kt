@@ -27,7 +27,7 @@ class ChatRepositoryImpl(
 ) : ChatRepository {
     private val sessionId = UUID.randomUUID().toString()
 
-    override suspend fun getAnswer(messageList: List<Message>): YaResult<Message, Unit> {
+    override suspend fun getAnswer(messageList: List<Message>, temperature: Float): YaResult<Message, Unit> {
         val tokenData = when (val tokenResult = getToken()) {
             is YaResult.Success -> tokenResult.data
             is YaResult.Failure -> return YaResult.Failure(Unit)
@@ -39,12 +39,13 @@ class ChatRepositoryImpl(
                     messageList = messageList.map {
                         it.mapToData()
                     }.toMutableList().apply {
-                        if (size < 4) {
+                        /*if (size < 4) {
                             add(0, getHelperSystemPrompt())
                         } else {
                             add(0, getCookingSystemPrompt())
-                        }
-                    }
+                        }*/
+                    },
+                    temperature = temperature
                 ),
                 clientId = Installation.id(appDir),
                 sessionId = sessionId
@@ -109,6 +110,10 @@ class ChatRepositoryImpl(
         } else {
             YaResult.Failure(Unit)
         }
+    }
+
+    private fun getHistorySystemPrompt() {
+
     }
 
     private fun getHelperSystemPrompt(): MessageDto {

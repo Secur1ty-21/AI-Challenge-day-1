@@ -7,7 +7,7 @@ import ru.yamost.first.agent.featute.chat.domain.model.Message
 class GetAnswerUseCase(
     private val chatRepository: ChatRepository
 ) {
-    suspend fun execute(story: List<Message>): YaResult<Message, Unit> {
-        return chatRepository.getAnswer(story)
+    suspend fun execute(story: List<Message>, temperature: Float): YaResult<Message, Unit> {
+        return chatRepository.getAnswer(story, temperature)
     }
 }

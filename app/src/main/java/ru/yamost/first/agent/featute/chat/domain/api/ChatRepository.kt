@@ -4,5 +4,5 @@ import ru.yamost.first.agent.core.domain.YaResult
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 
 interface ChatRepository {
-    suspend fun getAnswer(messageList: List<Message>): YaResult<Message, Unit>
+    suspend fun getAnswer(messageList: List<Message>, temperature: Float): YaResult<Message, Unit>
 }

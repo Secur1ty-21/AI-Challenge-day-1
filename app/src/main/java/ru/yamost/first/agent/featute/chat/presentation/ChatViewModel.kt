@@ -15,6 +15,7 @@ import ru.yamost.first.agent.featute.chat.presentation.model.ChatState
 import ru.yamost.first.agent.featute.chat.presentation.model.MessageUi
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.Locale
 
 class ChatViewModel(
     private val getAnswerUseCase: GetAnswerUseCase
@@ -34,6 +35,16 @@ class ChatViewModel(
                 }
             }
 
+            is ChatEvent.TypeTemperature -> {
+                _state.update {
+                    it.copy(temperature = event.temperature)
+                }
+            }
+
+            is ChatEvent.BtnClearClick -> {
+                _state.update { it.copy(story = emptyList(), input = "") }
+            }
+
             is ChatEvent.BtnSendClick -> {
                 if (_state.value.input.isBlank()) {
                     return
@@ -45,9 +56,10 @@ class ChatViewModel(
                             role = MessageRole.USER,
                             timestamp = sdf.format(System.currentTimeMillis())
                         )
-                         val newStory = _state.value.story.toMutableList().apply {
-                             add(message)
-                         }
+                        val newStory = _state.value.story.toMutableList().apply {
+                            add(message)
+                        }
+                        val temperature = _state.value.temperature.toFloatOrNull() ?: 0f
                         _state.update {
                             it.copy(
                                 isLoading = true,
@@ -56,7 +68,8 @@ class ChatViewModel(
                             )
                         }
                         val answerResult = getAnswerUseCase.execute(
-                            story = newStory.map { it.mapToDomain() }
+                            story = newStory.map { it.mapToDomain() },
+                            temperature = temperature
                         )
                         when (answerResult) {
                             is YaResult.Success -> {
@@ -93,7 +106,7 @@ class ChatViewModel(
         }
     }
 
-    private val sdf = SimpleDateFormat("dd.MM HH:mm")
+    private val sdf = SimpleDateFormat("dd.MM HH:mm", Locale.ENGLISH)
 
     private fun Message.mapToUi(): MessageUi {
         return MessageUi(

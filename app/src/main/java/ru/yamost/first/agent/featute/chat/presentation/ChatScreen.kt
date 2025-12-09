@@ -18,7 +18,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -27,6 +29,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,11 +54,14 @@ fun ChatScreen(
     val action = viewModel.action.collectAsStateWithLifecycle().value
     ChatScreen(
         state = state,
-        modifier = Modifier.background(color = YaColor.ChatBackground).padding(systemPadding),
+        modifier = Modifier
+            .background(color = YaColor.ChatBackground)
+            .padding(systemPadding),
         eventCallback = { viewModel.obtainEvent(it) }
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatScreen(
     state: ChatState,
@@ -63,17 +69,53 @@ private fun ChatScreen(
     eventCallback: (ChatEvent) -> Unit
 ) {
     Column(
-        modifier = modifier.background(color = YaColor.ChatBackground).fillMaxSize()
-            .padding(top = 20.dp, start = 8.dp, end = 8.dp, bottom = 8.dp)
+        modifier = modifier
+            .background(color = YaColor.ChatBackground)
+            .fillMaxSize()
+            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp)
     ) {
+        Column(
+            modifier = Modifier.background(color = Color.White).fillMaxWidth()
+        ) {
+            Text(
+                modifier = Modifier.padding(top = 8.dp),
+                text = "Giga Chat Api",
+                fontSize = 20.sp,
+                style = MaterialTheme.typography.titleMedium
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = { eventCallback(ChatEvent.BtnClearClick) }
+                ) { Text(text = "Очистить") }
+                OutlinedTextField(
+                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+                    placeholder = { Text(text = "Температура") },
+                    label = { Text(text = "Температура") },
+                    value = state.temperature,
+                    onValueChange = {
+                        if (it.isEmpty() || it.toFloatOrNull() != null || it.endsWith('.')) {
+                            eventCallback(ChatEvent.TypeTemperature(it))
+                        }
+                    }
+                )
+            }
+        }
         LazyColumn(
-            modifier = Modifier.padding(top = 20.dp).weight(1f).fillMaxWidth(),
+            modifier = Modifier
+                .padding(top = 20.dp)
+                .weight(1f)
+                .fillMaxWidth(),
             reverseLayout = true
         ) {
             items(state.story.reversed()) { message ->
                 MessageBubble(
                     message = message,
-                    modifier = Modifier.animateItem().fillMaxWidth()
+                    modifier = Modifier
+                        .animateItem()
+                        .fillMaxWidth()
                 )
             }
         }
@@ -133,7 +175,8 @@ fun MessageBubble(message: MessageUi, modifier: Modifier = Modifier) {
             MessageRole.ASSISTANT -> Arrangement.Start
             MessageRole.SYSTEM -> Arrangement.Center
         },
-        modifier = modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        modifier = modifier
+            .padding(horizontal = 16.dp, vertical = 8.dp)
             .padding(
                 start = if (message.role == MessageRole.USER) 20.dp else 0.dp,
                 end = if (message.role == MessageRole.USER) 0.dp else 20.dp,
