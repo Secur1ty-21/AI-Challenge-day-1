@@ -41,8 +41,21 @@ class ChatViewModel(
                 }
             }
 
+            is ChatEvent.BtnToggleTemperatureClick -> {
+                _state.update {
+                    it.copy(isTemperatureVisible = it.isTemperatureVisible.not())
+                }
+            }
+
             is ChatEvent.BtnClearClick -> {
-                _state.update { it.copy(story = emptyList(), input = "") }
+                _state.update {
+                    it.copy(
+                        story = emptyList(),
+                        input = "",
+                        usage = null,
+                        isTemperatureVisible = false
+                    )
+                }
             }
 
             is ChatEvent.BtnSendClick -> {
@@ -77,8 +90,9 @@ class ChatViewModel(
                                     it.copy(
                                         isLoading = false,
                                         story = newStory.toMutableList().apply {
-                                            add(answerResult.data.mapToUi())
-                                        }
+                                            add(answerResult.data.message.mapToUi())
+                                        },
+                                        usage = answerResult.data.usage
                                     )
                                 }
                             }

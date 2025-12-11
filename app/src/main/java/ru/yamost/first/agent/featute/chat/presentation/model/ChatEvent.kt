@@ -5,4 +5,5 @@ sealed interface ChatEvent {
     class TypeTemperature(val temperature: String) : ChatEvent
     object BtnSendClick : ChatEvent
     object BtnClearClick : ChatEvent
+    object BtnToggleTemperatureClick : ChatEvent
 }

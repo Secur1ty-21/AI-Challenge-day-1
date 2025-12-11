@@ -14,6 +14,7 @@ import ru.yamost.first.agent.featute.chat.data.storage.Installation
 import ru.yamost.first.agent.featute.chat.domain.api.ChatRepository
 import ru.yamost.first.agent.featute.chat.domain.api.TokenRepository
 import ru.yamost.first.agent.featute.chat.domain.model.AccessTokenData
+import ru.yamost.first.agent.featute.chat.domain.model.Answer
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import java.io.File
@@ -27,7 +28,7 @@ class ChatRepositoryImpl(
 ) : ChatRepository {
     private val sessionId = UUID.randomUUID().toString()
 
-    override suspend fun getAnswer(messageList: List<Message>, temperature: Float): YaResult<Message, Unit> {
+    override suspend fun getAnswer(messageList: List<Message>, temperature: Float): YaResult<Answer, Unit> {
         val tokenData = when (val tokenResult = getToken()) {
             is YaResult.Success -> tokenResult.data
             is YaResult.Failure -> return YaResult.Failure(Unit)
@@ -56,7 +57,7 @@ class ChatRepositoryImpl(
         val body = getAnswerResponse.body()
 
         return if (getAnswerResponse.isSuccessful && body != null) {
-            YaResult.Success(body.messageList.first().message.mapToDomain())
+            YaResult.Success(body.mapToDomain())
         } else {
             YaResult.Failure(Unit)
         }

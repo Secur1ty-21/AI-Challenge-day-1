@@ -6,11 +6,19 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,9 +26,15 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
@@ -29,16 +43,18 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import org.koin.androidx.compose.koinViewModel
+import ru.yamost.first.agent.R
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatEvent
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatState
@@ -74,38 +90,187 @@ private fun ChatScreen(
             .fillMaxSize()
             .padding(start = 8.dp, end = 8.dp, bottom = 8.dp)
     ) {
-        Column(
-            modifier = Modifier.background(color = Color.White).fillMaxWidth()
+        // Верхняя панель с заголовком и кнопкой очистки
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = Color.White,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Text(
-                modifier = Modifier.padding(top = 8.dp),
-                text = "Giga Chat Api",
-                fontSize = 20.sp,
-                style = MaterialTheme.typography.titleMedium
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier
+                    .padding(top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding())
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Button(
-                    onClick = { eventCallback(ChatEvent.BtnClearClick) }
-                ) { Text(text = "Очистить") }
-                OutlinedTextField(
-                    modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
-                    placeholder = { Text(text = "Температура") },
-                    label = { Text(text = "Температура") },
-                    value = state.temperature,
-                    onValueChange = {
-                        if (it.isEmpty() || it.toFloatOrNull() != null || it.endsWith('.')) {
-                            eventCallback(ChatEvent.TypeTemperature(it))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Giga Chat API",
+                        fontSize = 20.sp,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    // Кнопка очистки с улучшенным дизайном
+                    Button(
+                        onClick = { eventCallback(ChatEvent.BtnClearClick) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                            contentColor = MaterialTheme.colorScheme.onErrorContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(40.dp)
+                    ) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_delete_sweep),
+                            contentDescription = "Очистить",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Новый диалог",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                // Кнопка настройки температуры
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = { eventCallback(ChatEvent.BtnToggleTemperatureClick) },
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        ),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Настройки температуры",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = if (state.isTemperatureVisible) "Скрыть температуру" else "Показать температуру",
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                // Поле ввода температуры (скрыто по умолчанию)
+                if (state.isTemperatureVisible) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 12.dp)
+                    ) {
+                        Text(
+                            text = "Температура (0.0 - 1.0)",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 4.dp)
+                        )
+                        OutlinedTextField(
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text(text = "0.0") },
+                            value = state.temperature,
+                            onValueChange = {
+                                if (it.isEmpty() || it.toFloatOrNull() != null || it.endsWith('.')) {
+                                    eventCallback(ChatEvent.TypeTemperature(it))
+                                }
+                            },
+                            singleLine = true,
+                            trailingIcon = {
+                                IconButton(
+                                    onClick = {
+                                        if (state.temperature != "0") {
+                                            eventCallback(ChatEvent.TypeTemperature("0"))
+                                        }
+                                    }
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Сбросить",
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                            ),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                }
+
+                // Отображение использованных токенов
+                state.usage?.let { usage ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 16.dp)
+                    ) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            thickness = 1.dp
+                        )
+                        Text(
+                            text = "Использование токенов",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            TokenUsageItem(
+                                label = "Prompt",
+                                value = usage.promptTokens,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            TokenUsageItem(
+                                label = "Completion",
+                                value = usage.completionTokens,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                            TokenUsageItem(
+                                label = "Precached",
+                                value = usage.precachedTokens,
+                                color = MaterialTheme.colorScheme.tertiary
+                            )
+                            TokenUsageItem(
+                                label = "Total",
+                                value = usage.totalTokens,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
                         }
                     }
-                )
+                }
             }
         }
+
+        // История сообщений
         LazyColumn(
             modifier = Modifier
-                .padding(top = 20.dp)
                 .weight(1f)
                 .fillMaxWidth(),
             reverseLayout = true
@@ -116,18 +281,24 @@ private fun ChatScreen(
                     modifier = Modifier
                         .animateItem()
                         .fillMaxWidth()
+                        .padding(vertical = 4.dp)
                 )
             }
         }
+
+        // Поле ввода сообщения
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .imePadding()
+                .fillMaxWidth()
+                .padding(top = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
                 value = state.input,
                 onValueChange = { eventCallback(ChatEvent.TypeRequest(it)) },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Введите сообщение") },
+                placeholder = { Text("Введите сообщение...") },
                 singleLine = false,
                 maxLines = 4,
                 keyboardOptions = KeyboardOptions.Default.copy(imeAction = ImeAction.Send),
@@ -150,20 +321,57 @@ private fun ChatScreen(
             )
             Spacer(modifier = Modifier.width(8.dp))
             if (state.isLoading) {
-                CircularProgressIndicator(color = Color.White)
+                CircularProgressIndicator(
+                    color = Color.White,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(48.dp)
+                )
             } else {
                 IconButton(
                     onClick = { eventCallback(ChatEvent.BtnSendClick) },
-                    colors = IconButtonDefaults.iconButtonColors(containerColor = Color(0xFF0088CC))
+                    colors = IconButtonDefaults.iconButtonColors(
+                        containerColor = Color(0xFF0088CC),
+                        contentColor = Color.White,
+                        disabledContainerColor = Color(0xFF666666)
+                    ),
+                    modifier = Modifier.size(56.dp),
+                    enabled = state.input.isNotBlank()
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Default.Send,
                         contentDescription = "Отправить",
-                        tint = Color.White
+                        tint = Color.White,
+                        modifier = Modifier.size(24.dp)
                     )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TokenUsageItem(
+    label: String,
+    value: Long,
+    color: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 4.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+        Text(
+            text = value.toString(),
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = color,
+            maxLines = 1
+        )
     }
 }
 
@@ -176,18 +384,14 @@ fun MessageBubble(message: MessageUi, modifier: Modifier = Modifier) {
             MessageRole.SYSTEM -> Arrangement.Center
         },
         modifier = modifier
-            .padding(horizontal = 16.dp, vertical = 8.dp)
-            .padding(
-                start = if (message.role == MessageRole.USER) 20.dp else 0.dp,
-                end = if (message.role == MessageRole.USER) 0.dp else 20.dp,
-            )
+            .padding(horizontal = 8.dp)
     ) {
         Surface(
             shape = RoundedCornerShape(
-                topStart = if (message.role == MessageRole.USER) 16.dp else 0.dp,
-                topEnd = if (message.role == MessageRole.USER) 0.dp else 16.dp,
-                bottomStart = 16.dp,
-                bottomEnd = 16.dp
+                topStart = if (message.role == MessageRole.USER) 20.dp else 8.dp,
+                topEnd = if (message.role == MessageRole.USER) 8.dp else 20.dp,
+                bottomStart = 20.dp,
+                bottomEnd = 20.dp
             ),
             color = when (message.role) {
                 MessageRole.USER -> YaColor.UserMessageBackground
@@ -195,9 +399,14 @@ fun MessageBubble(message: MessageUi, modifier: Modifier = Modifier) {
                 MessageRole.SYSTEM -> MaterialTheme.colorScheme.surfaceVariant
             },
             contentColor = Color.White,
-            tonalElevation = 4.dp
+            tonalElevation = 2.dp,
+            shadowElevation = 2.dp
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
+            Column(
+                modifier = Modifier
+                    .padding(16.dp)
+                    .widthIn(max = 280.dp)
+            ) {
                 Text(
                     text = message.text,
                     style = MaterialTheme.typography.bodyMedium,
@@ -205,17 +414,17 @@ fun MessageBubble(message: MessageUi, modifier: Modifier = Modifier) {
                         YaColor.UserMessageTextColor
                     } else {
                         YaColor.AssistantMessageTextColor
-                    }
+                    },
+                    modifier = Modifier.padding(bottom = 4.dp)
                 )
-                Spacer(Modifier.height(4.dp))
                 Text(
                     text = message.timestamp,
                     style = MaterialTheme.typography.labelSmall,
-                    fontSize = 12.sp,
+                    fontSize = 10.sp,
                     color = if (message.role == MessageRole.USER) {
-                        YaColor.UserMessageTextColor
+                        YaColor.UserMessageTextColor.copy(alpha = 0.7f)
                     } else {
-                        YaColor.AssistantMessageTextColor
+                        YaColor.AssistantMessageTextColor.copy(alpha = 0.7f)
                     }
                 )
             }
