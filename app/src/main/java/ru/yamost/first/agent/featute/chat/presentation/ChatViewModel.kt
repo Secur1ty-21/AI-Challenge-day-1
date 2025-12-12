@@ -87,11 +87,17 @@ class ChatViewModel(
                         when (answerResult) {
                             is YaResult.Success -> {
                                 _state.update {
+                                    val userMessageCount = newStory.count { msg -> msg.role == MessageRole.USER }
+                                    val resultStory = if (userMessageCount > 3) {
+                                        listOf(newStory.first(), answerResult.data.message.mapToUi())
+                                    } else {
+                                        newStory.toMutableList().apply {
+                                            add(answerResult.data.message.mapToUi())
+                                        }
+                                    }
                                     it.copy(
                                         isLoading = false,
-                                        story = newStory.toMutableList().apply {
-                                            add(answerResult.data.message.mapToUi())
-                                        },
+                                        story = resultStory,
                                         usage = answerResult.data.usage
                                     )
                                 }

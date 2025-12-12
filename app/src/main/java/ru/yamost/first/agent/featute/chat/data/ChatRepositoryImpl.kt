@@ -63,6 +63,37 @@ class ChatRepositoryImpl(
         }
     }
 
+    override suspend fun summary(messageList: List<Message>): YaResult<Answer, Unit> {
+        val tokenData = when (val tokenResult = getToken()) {
+            is YaResult.Success -> tokenResult.data
+            is YaResult.Failure -> return YaResult.Failure(Unit)
+        }
+        val getAnswerResponse = runCatching {
+            gigaService.getAnswer(
+                bearerToken = BEARER_FORMAT.format(tokenData.token),
+                body = GetAnswerRequest(
+                    messageList = messageList.map {
+                        it.mapToData()
+                    }.toMutableList().apply {
+                        add(getSummarySystemPrompt())
+                    },
+                    temperature = 0f
+                ),
+                clientId = Installation.id(appDir),
+                sessionId = sessionId
+            )
+        }.onFailure {
+            it.printStackTrace()
+        }.getOrNull() ?: return YaResult.Failure(Unit)
+        val body = getAnswerResponse.body()
+
+        return if (getAnswerResponse.isSuccessful && body != null) {
+            YaResult.Success(body.mapToDomain())
+        } else {
+            YaResult.Failure(Unit)
+        }
+    }
+
     private suspend fun getToken(): YaResult<AccessTokenData, Unit> {
         val savedToken = tokenRepository.getAccessToken()
         return if (savedToken.token.isEmpty() || savedToken.expiredAt < System.currentTimeMillis() - 1000) {
@@ -113,8 +144,14 @@ class ChatRepositoryImpl(
         }
     }
 
-    private fun getHistorySystemPrompt() {
-
+    private fun getSummarySystemPrompt(): MessageDto {
+        val task = "Задача: Сделать краткое резюме нашего диалога, используюя только текст моих сообщений и твох ответов." +
+                "Ни в коем случае не придумывай факты, которых не было в нашей истории диалога."
+        val outputFormat = "Фомат ответа: Короткое резюме нашего диалога."
+        return MessageDto(
+            text = task + outputFormat,
+            role = MessageRole.USER.apiLabel
+        )
     }
 
     private fun getHelperSystemPrompt(): MessageDto {

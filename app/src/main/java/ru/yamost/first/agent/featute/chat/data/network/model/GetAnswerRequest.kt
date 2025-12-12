@@ -10,7 +10,7 @@ class GetAnswerRequest(
     @SerializedName("updateInterval")
     val updateInterval: Int = 0,
     @SerializedName("max_tokens")
-    val maxTokens: Int = 300,
+    val maxTokens: Int = 200,
     @SerializedName("temperature")
     val temperature: Float,
     @SerializedName("messages")
