@@ -8,7 +8,9 @@ import ru.yamost.first.agent.core.domain.YaResult
 import ru.yamost.first.agent.core.presentation.BaseViewModel
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
+import ru.yamost.first.agent.featute.chat.domain.useCase.GetAllDialogsUseCase
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAnswerUseCase
+import ru.yamost.first.agent.featute.chat.domain.useCase.GetDialogHistoryByIdUseCase
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatAction
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatEvent
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatState
@@ -16,14 +18,43 @@ import ru.yamost.first.agent.featute.chat.presentation.model.MessageUi
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.UUID
 
 class ChatViewModel(
-    private val getAnswerUseCase: GetAnswerUseCase
+    private val getAnswerUseCase: GetAnswerUseCase,
+    private val getAllDialogsUseCase: GetAllDialogsUseCase,
+    private val getDialogHistoryByIdUseCase: GetDialogHistoryByIdUseCase
 ) : BaseViewModel() {
     private val _state = MutableStateFlow(ChatState())
     val state = _state.asStateFlow()
     private val _action = MutableStateFlow<ChatAction?>(null)
     val action = _action.asStateFlow()
+    private var sessionId: String = ""
+
+    init {
+        loadDialogs()
+    }
+
+    private fun loadDialogs() {
+        runSafely(
+            block = {
+                when (val result = getAllDialogsUseCase.execute()) {
+                    is YaResult.Success -> {
+                        _state.update {
+                            it.copy(dialogs = result.data)
+                        }
+                    }
+
+                    is YaResult.Failure -> {
+
+                    }
+                }
+            },
+            onError = {
+
+            }
+        )
+    }
 
     fun obtainEvent(event: ChatEvent) {
         when (event) {
@@ -48,6 +79,7 @@ class ChatViewModel(
             }
 
             is ChatEvent.BtnClearClick -> {
+                sessionId = ""
                 _state.update {
                     it.copy(
                         story = emptyList(),
@@ -64,6 +96,9 @@ class ChatViewModel(
                 }
                 runSafely(
                     block = {
+                        if (sessionId.isEmpty()) {
+                            sessionId = UUID.randomUUID().toString()
+                        }
                         val message = MessageUi(
                             text = _state.value.input,
                             role = MessageRole.USER,
@@ -82,14 +117,19 @@ class ChatViewModel(
                         }
                         val answerResult = getAnswerUseCase.execute(
                             story = newStory.map { it.mapToDomain() },
-                            temperature = temperature
+                            temperature = temperature,
+                            sessionId = sessionId
                         )
                         when (answerResult) {
                             is YaResult.Success -> {
                                 _state.update {
-                                    val userMessageCount = newStory.count { msg -> msg.role == MessageRole.USER }
+                                    val userMessageCount =
+                                        newStory.count { msg -> msg.role == MessageRole.USER }
                                     val resultStory = if (userMessageCount > 3) {
-                                        listOf(newStory.first(), answerResult.data.message.mapToUi())
+                                        listOf(
+                                            newStory.first(),
+                                            answerResult.data.message.mapToUi()
+                                        )
                                     } else {
                                         newStory.toMutableList().apply {
                                             add(answerResult.data.message.mapToUi())
@@ -101,6 +141,7 @@ class ChatViewModel(
                                         usage = answerResult.data.usage
                                     )
                                 }
+                                loadDialogs()
                             }
 
                             is YaResult.Failure -> {
@@ -120,6 +161,35 @@ class ChatViewModel(
                                 isLoading = false
                             )
                         }
+                    }
+                )
+            }
+
+            is ChatEvent.ToggleMenuClick -> {
+                _state.update {
+                    it.copy(isMenuOpen = it.isMenuOpen.not())
+                }
+            }
+
+            is ChatEvent.SelectDialog -> {
+                runSafely(
+                    block = {
+                        _state.update { it.copy(isLoading = true) }
+                        when (val result = getDialogHistoryByIdUseCase.execute(event.dialogId)) {
+                            is YaResult.Success -> {
+                                sessionId = event.dialogId
+                                _state.update {
+                                    it.copy(story = result.data.map { msg -> msg.mapToUi() }, isLoading = false)
+                                }
+                            }
+
+                            is YaResult.Failure -> {
+                                _state.update { it.copy(isLoading = false) }
+                            }
+                        }
+                    },
+                    onError = {
+                        _state.update { it.copy(isLoading = false) }
                     }
                 )
             }

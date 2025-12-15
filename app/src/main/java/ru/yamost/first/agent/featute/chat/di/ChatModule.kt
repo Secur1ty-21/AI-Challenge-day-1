@@ -14,10 +14,14 @@ import ru.yamost.first.agent.R
 import ru.yamost.first.agent.featute.chat.data.ChatRepositoryImpl
 import ru.yamost.first.agent.featute.chat.data.network.AuthService
 import ru.yamost.first.agent.featute.chat.data.network.GigaService
+import ru.yamost.first.agent.featute.chat.data.storage.ChatStorageImpl
 import ru.yamost.first.agent.featute.chat.data.storage.TokenRepositoryImpl
 import ru.yamost.first.agent.featute.chat.domain.api.ChatRepository
+import ru.yamost.first.agent.featute.chat.domain.api.ChatStorage
 import ru.yamost.first.agent.featute.chat.domain.api.TokenRepository
+import ru.yamost.first.agent.featute.chat.domain.useCase.GetAllDialogsUseCase
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAnswerUseCase
+import ru.yamost.first.agent.featute.chat.domain.useCase.GetDialogHistoryByIdUseCase
 import ru.yamost.first.agent.featute.chat.presentation.ChatViewModel
 import java.security.KeyStore
 import java.security.cert.CertificateFactory
@@ -107,12 +111,17 @@ val chatModule = module {
         )
     }
 
+    single<ChatStorage> {
+        ChatStorageImpl(context = androidContext(), gson = get())
+    }
+
     single<ChatRepository> {
         ChatRepositoryImpl(
             authService = get(),
             gigaService = get(),
             tokenRepository = get(),
-            appDir = androidContext().filesDir
+            appDir = androidContext().filesDir,
+            chatStorage = get()
         )
     }
 
@@ -122,9 +131,19 @@ val chatModule = module {
         )
     }
 
+    factory {
+        GetAllDialogsUseCase(chatStorage = get())
+    }
+
+    factory {
+        GetDialogHistoryByIdUseCase(chatStorage = get())
+    }
+
     viewModel {
         ChatViewModel(
-            getAnswerUseCase = get()
+            getAnswerUseCase = get(),
+            getAllDialogsUseCase = get(),
+            getDialogHistoryByIdUseCase = get()
         )
     }
 }

@@ -8,7 +8,7 @@ import ru.yamost.first.agent.featute.chat.domain.model.Message
 class SummaryUseCase(
     private val chatRepository: ChatRepository
 ) {
-    suspend fun execute(story: List<Message>): YaResult<Answer, Unit> {
-        return chatRepository.summary(story)
+    suspend fun execute(story: List<Message>, sessionId: String): YaResult<Answer, Unit> {
+        return chatRepository.summary(story, sessionId)
     }
 }

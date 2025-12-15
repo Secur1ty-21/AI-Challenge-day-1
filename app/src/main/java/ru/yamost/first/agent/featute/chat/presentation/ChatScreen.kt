@@ -1,6 +1,7 @@
 package ru.yamost.first.agent.featute.chat.presentation
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeContentPadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -27,39 +27,51 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import ru.yamost.first.agent.R
+import ru.yamost.first.agent.featute.chat.domain.model.ChatDialog
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatEvent
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatState
 import ru.yamost.first.agent.featute.chat.presentation.model.MessageUi
 import ru.yamost.first.agent.ui.theme.YaColor
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @Composable
 fun ChatScreen(
@@ -67,19 +79,203 @@ fun ChatScreen(
     systemPadding: PaddingValues
 ) {
     val state = viewModel.state.collectAsStateWithLifecycle().value
-    val action = viewModel.action.collectAsStateWithLifecycle().value
-    ChatScreen(
-        state = state,
-        modifier = Modifier
-            .background(color = YaColor.ChatBackground)
-            .padding(systemPadding),
-        eventCallback = { viewModel.obtainEvent(it) }
-    )
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+
+    ModalNavigationDrawer(
+        modifier = Modifier.padding(systemPadding),
+        drawerState = drawerState,
+        gesturesEnabled = false,
+        drawerContent = {
+            DrawerContent(
+                state = state,
+                onDialogSelected = { dialogId ->
+                    viewModel.obtainEvent(ChatEvent.SelectDialog(dialogId))
+                    scope.launch {
+                        drawerState.close()
+                        if (state.isMenuOpen) {
+                            viewModel.obtainEvent(ChatEvent.ToggleMenuClick)
+                        }
+                    }
+                },
+                onClose = {
+                    scope.launch {
+                        drawerState.close()
+                        if (state.isMenuOpen) {
+                            viewModel.obtainEvent(ChatEvent.ToggleMenuClick)
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(0.8f)
+            )
+        }
+    ) {
+        ChatContent(
+            state = state,
+            modifier = Modifier.background(color = YaColor.ChatBackground),
+            eventCallback = { viewModel.obtainEvent(it) }
+        )
+        LaunchedEffect(state.isMenuOpen) {
+            if (state.isMenuOpen && drawerState.isClosed) {
+                scope.launch { drawerState.open() }
+            } else if (state.isMenuOpen.not() && drawerState.isOpen) {
+                scope.launch { drawerState.close() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DrawerContent(
+    state: ChatState,
+    onDialogSelected: (String) -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .safeDrawingPadding()
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.surface)
+    ) {
+        // Заголовок меню
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "История диалогов",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            IconButton(onClick = onClose) {
+                Icon(
+                    imageVector = Icons.Default.Close,
+                    contentDescription = "Закрыть меню"
+                )
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+        // Список диалогов
+        if (state.dialogs.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_history),
+                    contentDescription = "Нет истории",
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Нет сохраненных диалогов",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth(),
+                contentPadding = PaddingValues(vertical = 8.dp),
+                reverseLayout = true
+            ) {
+                items(state.dialogs) { dialog ->
+                    DialogItem(
+                        dialog = dialog,
+                        onClick = { onDialogSelected(dialog.id) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialogItem(
+    dialog: ChatDialog,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        ),
+        shape = RoundedCornerShape(12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Text(
+                text = dialog.title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (dialog.lastMessage.isNotEmpty()) {
+                Text(
+                    text = dialog.lastMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = dialog.lastMessageTimestamp.format(
+                        DateTimeFormatter.ofPattern("dd.MM HH:mm", Locale.ENGLISH)
+                    ),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                )
+
+                Badge(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                ) {
+                    Text(
+                        text = "${dialog.messageCount}",
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ChatScreen(
+private fun ChatContent(
     state: ChatState,
     modifier: Modifier = Modifier,
     eventCallback: (ChatEvent) -> Unit
@@ -88,7 +284,8 @@ private fun ChatScreen(
         modifier = modifier
             .background(color = YaColor.ChatBackground)
             .fillMaxSize()
-            .padding(start = 8.dp, end = 8.dp, bottom = 8.dp)
+            .imePadding()
+            .padding(bottom = 8.dp)
     ) {
         // Верхняя панель с заголовком и кнопкой очистки
         Card(
@@ -111,6 +308,19 @@ private fun ChatScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    IconButton(
+                        onClick = { eventCallback(ChatEvent.ToggleMenuClick) },
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Меню"
+                        )
+                    }
+
                     Text(
                         text = "Giga Chat API",
                         fontSize = 20.sp,
@@ -118,7 +328,6 @@ private fun ChatScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
 
-                    // Кнопка очистки с улучшенным дизайном
                     Button(
                         onClick = { eventCallback(ChatEvent.BtnClearClick) },
                         colors = ButtonDefaults.buttonColors(
@@ -142,7 +351,6 @@ private fun ChatScreen(
                     }
                 }
 
-                // Кнопка настройки температуры
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -171,7 +379,6 @@ private fun ChatScreen(
                     )
                 }
 
-                // Поле ввода температуры (скрыто по умолчанию)
                 if (state.isTemperatureVisible) {
                     Column(
                         modifier = Modifier
@@ -220,7 +427,6 @@ private fun ChatScreen(
                     }
                 }
 
-                // Отображение использованных токенов
                 state.usage?.let { usage ->
                     Column(
                         modifier = Modifier
@@ -268,11 +474,11 @@ private fun ChatScreen(
             }
         }
 
-        // История сообщений
         LazyColumn(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp),
             reverseLayout = true
         ) {
             items(state.story.reversed()) { message ->
@@ -286,12 +492,11 @@ private fun ChatScreen(
             }
         }
 
-        // Поле ввода сообщения
         Row(
             modifier = Modifier
                 .imePadding()
                 .fillMaxWidth()
-                .padding(top = 12.dp),
+                .padding(top = 12.dp, start = 8.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(

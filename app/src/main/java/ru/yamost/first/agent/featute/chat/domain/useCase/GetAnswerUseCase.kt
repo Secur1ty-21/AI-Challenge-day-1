@@ -10,7 +10,7 @@ import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 class GetAnswerUseCase(
     private val chatRepository: ChatRepository
 ) {
-    suspend fun execute(story: List<Message>, temperature: Float): YaResult<Answer, Unit> {
+    suspend fun execute(story: List<Message>, temperature: Float, sessionId: String): YaResult<Answer, Unit> {
         val userMessageCount = story.count { it.role == MessageRole.USER }
         return if (userMessageCount > START_SUMMARY_COUNT) {
             var count = 0
@@ -21,10 +21,10 @@ class GetAnswerUseCase(
                 count != START_SUMMARY_COUNT + 2
             }
             Log.v(TAG, "take messages length = ${lastUserMessages.size}")
-            when (val summaryResult = chatRepository.summary(lastUserMessages.dropLast(1))) {
+            when (val summaryResult = chatRepository.summary(lastUserMessages.dropLast(1), sessionId)) {
                 is YaResult.Success -> {
                     val shortStory = listOf(summaryResult.data.message, lastUserMessages.last())
-                    when (val answerResult = chatRepository.getAnswer(shortStory, temperature)) {
+                    when (val answerResult = chatRepository.getAnswer(shortStory, temperature, sessionId)) {
                         is YaResult.Success -> YaResult.Success(Answer(
                             message = Message(
                                 text = "# Суммаризация для сжатия контекста\n${summaryResult.data.message.text}" +
@@ -40,7 +40,7 @@ class GetAnswerUseCase(
                 is YaResult.Failure -> YaResult.Failure(Unit)
             }
         } else {
-            chatRepository.getAnswer(story, temperature)
+            chatRepository.getAnswer(story, temperature, sessionId)
         }
     }
 

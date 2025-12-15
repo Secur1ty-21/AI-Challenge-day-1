@@ -12,40 +12,37 @@ import ru.yamost.first.agent.featute.chat.data.network.model.mapToData
 import ru.yamost.first.agent.featute.chat.data.network.model.mapToDomain
 import ru.yamost.first.agent.featute.chat.data.storage.Installation
 import ru.yamost.first.agent.featute.chat.domain.api.ChatRepository
+import ru.yamost.first.agent.featute.chat.domain.api.ChatStorage
 import ru.yamost.first.agent.featute.chat.domain.api.TokenRepository
 import ru.yamost.first.agent.featute.chat.domain.model.AccessTokenData
 import ru.yamost.first.agent.featute.chat.domain.model.Answer
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import java.io.File
-import java.util.UUID
 
 class ChatRepositoryImpl(
     private val authService: AuthService,
     private val gigaService: GigaService,
     private val tokenRepository: TokenRepository,
-    private val appDir: File
+    private val appDir: File,
+    private val chatStorage: ChatStorage
 ) : ChatRepository {
-    private val sessionId = UUID.randomUUID().toString()
 
-    override suspend fun getAnswer(messageList: List<Message>, temperature: Float): YaResult<Answer, Unit> {
+    override suspend fun getAnswer(
+        messageList: List<Message>,
+        temperature: Float,
+        sessionId: String
+    ): YaResult<Answer, Unit> {
         val tokenData = when (val tokenResult = getToken()) {
             is YaResult.Success -> tokenResult.data
             is YaResult.Failure -> return YaResult.Failure(Unit)
         }
+        chatStorage.saveMessage(messageList.last(), sessionId)
         val getAnswerResponse = runCatching {
             gigaService.getAnswer(
                 bearerToken = BEARER_FORMAT.format(tokenData.token),
                 body = GetAnswerRequest(
-                    messageList = messageList.map {
-                        it.mapToData()
-                    }.toMutableList().apply {
-                        /*if (size < 4) {
-                            add(0, getHelperSystemPrompt())
-                        } else {
-                            add(0, getCookingSystemPrompt())
-                        }*/
-                    },
+                    messageList = messageList.map { it.mapToData() },
                     temperature = temperature
                 ),
                 clientId = Installation.id(appDir),
@@ -57,13 +54,15 @@ class ChatRepositoryImpl(
         val body = getAnswerResponse.body()
 
         return if (getAnswerResponse.isSuccessful && body != null) {
+            val answer = body.mapToDomain()
+            chatStorage.saveMessage(answer.message, sessionId)
             YaResult.Success(body.mapToDomain())
         } else {
             YaResult.Failure(Unit)
         }
     }
 
-    override suspend fun summary(messageList: List<Message>): YaResult<Answer, Unit> {
+    override suspend fun summary(messageList: List<Message>, sessionId: String): YaResult<Answer, Unit> {
         val tokenData = when (val tokenResult = getToken()) {
             is YaResult.Success -> tokenResult.data
             is YaResult.Failure -> return YaResult.Failure(Unit)
