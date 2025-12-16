@@ -1,0 +1,65 @@
+package ru.yamost.first.agent.featute.chat.data.mcp
+
+import android.util.Log
+import com.google.gson.GsonBuilder
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import java.util.concurrent.TimeUnit
+
+object McpClient {
+
+    private const val BASE_URL = "https://remote.mcpservers.org/"
+
+    // Хранение текущего Session ID
+    @Volatile
+    private var currentSessionId: String? = null
+
+    private val loggingInterceptor = HttpLoggingInterceptor().apply {
+        level = HttpLoggingInterceptor.Level.BODY
+    }
+
+    private val okHttpClient = OkHttpClient.Builder()
+        .addInterceptor(loggingInterceptor)
+        .addInterceptor { chain ->
+            val originalRequest = chain.request()
+            val requestBuilder = originalRequest.newBuilder()
+                .addHeader("Content-Type", "application/json")
+                .addHeader("Accept", "application/json, text/event-stream")
+
+            // Добавляем Session ID если он есть
+            currentSessionId?.let { sessionId ->
+                requestBuilder.addHeader("mcp-session-id", sessionId)
+            }
+
+            val response = chain.proceed(requestBuilder.build())
+
+            // Извлекаем Session ID из ответа если сервер его вернул
+            response.header("Mcp-Session-Id")?.let { sessionId ->
+                currentSessionId = sessionId
+                Log.d("McpClient", "Received Session ID: $sessionId")
+            }
+
+            response
+        }
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS)
+        .build()
+
+    private val gson = GsonBuilder()
+        .setLenient()
+        .create()
+
+    val retrofit: Retrofit = Retrofit.Builder()
+        .baseUrl(BASE_URL)
+        .client(okHttpClient)
+        .addConverterFactory(GsonConverterFactory.create(gson))
+        .build()
+
+    val apiService: McpApiService = retrofit.create(McpApiService::class.java)
+
+    fun clearSession() {
+        currentSessionId = null
+    }
+}

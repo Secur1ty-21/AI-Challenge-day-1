@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import ru.yamost.first.agent.core.domain.YaResult
 import ru.yamost.first.agent.core.presentation.BaseViewModel
+import ru.yamost.first.agent.featute.chat.data.mcp.McpRepository
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAllDialogsUseCase
@@ -33,6 +34,39 @@ class ChatViewModel(
 
     init {
         loadDialogs()
+        runSafely(
+            block = {
+                val repo = McpRepository()
+                val initialize = repo.initialize()
+                println("initialize = $initialize")
+                val sdf = SimpleDateFormat("dd.MM HH:mm", Locale.ENGLISH)
+                initialize.onSuccess {
+                    repo.getToolsList().onSuccess { toolList ->
+                        val messageList = mutableListOf<MessageUi>()
+                        messageList.add(MessageUi(
+                            text = "Список доступных инструментов",
+                            role = MessageRole.ASSISTANT,
+                            timestamp = sdf.format(Date().time)
+                        ))
+                        for (i in toolList.indices) {
+                            val tool = toolList[i]
+                            messageList.add(MessageUi(
+                                text = "#${i + 1}\nЗаголовок: ${tool.title}\nНаименование: ${tool.name}\n" +
+                                        "Схема${tool.inputSchema}\nОписание: ${tool.description}",
+                                role = MessageRole.ASSISTANT,
+                                timestamp = sdf.format(Date().time)
+                            ))
+                        }
+                        _state.update {
+                            it.copy(story = messageList)
+                        }
+                    }
+                }
+            },
+            onError = {
+
+            }
+        )
     }
 
     private fun loadDialogs() {
