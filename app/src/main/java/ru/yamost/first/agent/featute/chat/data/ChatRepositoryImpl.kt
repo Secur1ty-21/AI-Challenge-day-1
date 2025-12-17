@@ -1,12 +1,17 @@
 package ru.yamost.first.agent.featute.chat.data
 
 import android.util.Log
+import kotlinx.coroutines.delay
 import ru.yamost.first.agent.core.domain.YaResult
+import ru.yamost.first.agent.featute.chat.data.mcp.McpRepository
+import ru.yamost.first.agent.featute.chat.data.mcp.mapToGigaTool
 import ru.yamost.first.agent.featute.chat.data.network.AuthService
 import ru.yamost.first.agent.featute.chat.data.network.GigaService
 import ru.yamost.first.agent.featute.chat.data.network.model.AiModelDto
+import ru.yamost.first.agent.featute.chat.data.network.model.FinishReason
 import ru.yamost.first.agent.featute.chat.data.network.model.GetAccessTokenResponse
 import ru.yamost.first.agent.featute.chat.data.network.model.GetAnswerRequest
+import ru.yamost.first.agent.featute.chat.data.network.model.GigaToolDto
 import ru.yamost.first.agent.featute.chat.data.network.model.MessageDto
 import ru.yamost.first.agent.featute.chat.data.network.model.mapToData
 import ru.yamost.first.agent.featute.chat.data.network.model.mapToDomain
@@ -27,6 +32,7 @@ class ChatRepositoryImpl(
     private val appDir: File,
     private val chatStorage: ChatStorage
 ) : ChatRepository {
+    private val mcpRepository = McpRepository()
 
     override suspend fun getAnswer(
         messageList: List<Message>,
@@ -43,7 +49,8 @@ class ChatRepositoryImpl(
                 bearerToken = BEARER_FORMAT.format(tokenData.token),
                 body = GetAnswerRequest(
                     messageList = messageList.map { it.mapToData() },
-                    temperature = temperature
+                    temperature = temperature,
+                    toolList = listOf(getTool())
                 ),
                 clientId = Installation.id(appDir),
                 sessionId = sessionId
@@ -53,12 +60,27 @@ class ChatRepositoryImpl(
         }.getOrNull() ?: return YaResult.Failure(Unit)
         val body = getAnswerResponse.body()
 
-        return if (getAnswerResponse.isSuccessful && body != null) {
+        if (getAnswerResponse.isSuccessful && body != null) {
+            val answerMessage = body.messageList.firstOrNull()
+            val finishReason = answerMessage?.finishReason.orEmpty()
+            if (FinishReason.findByApiLabel(finishReason) == FinishReason.FUNCTION_CALL) {
+                runCatching {
+                    useTool(answerMessage?.message!!)
+                }.onSuccess { functionMessage ->
+                    val newMessageList = messageList.toMutableList().apply {
+                        add(answerMessage!!.message.mapToDomain())
+                        add(functionMessage.mapToDomain())
+                    }
+                    delay(2000)
+                    return getAnswer(newMessageList, temperature, sessionId)
+                }
+            }
+
             val answer = body.mapToDomain()
             chatStorage.saveMessage(answer.message, sessionId)
-            YaResult.Success(body.mapToDomain())
+            return YaResult.Success(body.mapToDomain())
         } else {
-            YaResult.Failure(Unit)
+            return YaResult.Failure(Unit)
         }
     }
 
@@ -76,7 +98,8 @@ class ChatRepositoryImpl(
                     }.toMutableList().apply {
                         add(getSummarySystemPrompt())
                     },
-                    temperature = 0f
+                    temperature = 0f,
+                    toolList = listOf(getTool())
                 ),
                 clientId = Installation.id(appDir),
                 sessionId = sessionId
@@ -91,6 +114,34 @@ class ChatRepositoryImpl(
         } else {
             YaResult.Failure(Unit)
         }
+    }
+
+    private suspend fun getTool(): GigaToolDto {
+        val initialize = mcpRepository.initialize()
+        initialize.onSuccess {
+            mcpRepository.getToolsList().onSuccess { toolList ->
+                if (toolList.isNotEmpty()) {
+                    return toolList.first().mapToGigaTool()
+                }
+            }
+        }
+        throw IllegalStateException()
+    }
+
+    private suspend fun useTool(messageDto: MessageDto): MessageDto {
+        val function = messageDto.functionCall!!
+        mcpRepository.callTool(
+            toolName = function.name,
+            arguments = function.arguments
+        ).onSuccess { responseMessage ->
+            return MessageDto(
+                text = responseMessage,
+                role = MessageRole.FUNCTION.apiLabel,
+                functionsStateId = null,
+                functionName = function.name
+            )
+        }
+        throw IllegalStateException()
     }
 
     private suspend fun getToken(): YaResult<AccessTokenData, Unit> {

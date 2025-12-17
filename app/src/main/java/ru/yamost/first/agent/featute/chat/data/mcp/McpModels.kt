@@ -1,6 +1,7 @@
 package ru.yamost.first.agent.featute.chat.data.mcp
 
 import com.google.gson.annotations.SerializedName
+import ru.yamost.first.agent.featute.chat.data.network.model.GigaToolDto
 
 // Базовый запрос JSON-RPC
 data class JsonRpcRequest(
@@ -26,7 +27,51 @@ data class Tool(
     @SerializedName("name") val name: String,
     @SerializedName("title") val title: String?,
     @SerializedName("description") val description: String,
-    @SerializedName("inputSchema") val inputSchema: Map<String, Any>
+    @SerializedName("inputSchema") val inputSchema: InputSchema,
+    @SerializedName("fewShotExamples") val fewShotExamples: List<FewShotExample>? = null,
+    @SerializedName("returnParameters") val returnParameters: ReturnParameters? = null
+)
+
+fun Tool.mapToGigaTool(): GigaToolDto {
+    return GigaToolDto(
+        name = name,
+        description = description,
+        parameters = inputSchema,
+        fewShotExamples = fewShotExamples,
+        returnParameters = returnParameters
+    )
+}
+
+data class InputSchema(
+    @SerializedName("type")
+    val type: String = "object",
+    @SerializedName("properties")
+    val properties: Map<String, PropertySchema>,
+    @SerializedName("required")
+    val required: List<String> = emptyList()
+)
+
+data class FewShotExample(
+    @SerializedName("request")
+    val request: String,
+    @SerializedName("params")
+    val params: Map<String, Any>,
+)
+
+data class ReturnParameters(
+    @SerializedName("type")
+    val type: String = "object",
+    @SerializedName("properties")
+    val properties: Map<String, PropertySchema>,
+    @SerializedName("description")
+    val description: String? = null
+)
+
+data class PropertySchema(
+    @SerializedName("type")
+    val type: String,
+    @SerializedName("description")
+    val description: String
 )
 
 // Модель ошибки JSON-RPC

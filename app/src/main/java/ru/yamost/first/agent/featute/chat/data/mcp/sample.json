@@ -1,0 +1,79 @@
+{
+  "stream": false,
+  "max_tokens": 200,
+  "messages": [
+    {
+      "role": "user",
+      "content": "Возведи в квадрат 10"
+    },
+    {
+      "function_call": {
+        "arguments": {
+          "number": 10.0
+        },
+        "name": "square"
+      },
+      "functions_state_id": "019b2a26-86af-7239-9744-280de05859a0",
+      "role": "assistant",
+      "content": ""
+    },
+    {
+      "name": "square",
+      "functions_state_id": "019b2a26-86af-7239-9744-280de05859a0",
+      "role": "function",
+      "content": "{\"content\":[{\"type\":\"text\",\"text\":\"Квадрат числа 10.0 равен 100.0\"}]}"
+    }
+  ],
+  "model": "GigaChat-2",
+  "temperature": 0.0,
+  "functions": [
+    {
+      "description": "Возводит число в квадрат. Принимает число и возвращает его квадрат.",
+      "fewShotExamples": [
+        {
+          "params": {
+            "number": 5.0
+          },
+          "request": "5 * 5 = ?"
+        },
+        {
+          "params": {
+            "number": -3.0
+          },
+          "request": "Сколько будет -3 в квадрате"
+        },
+        {
+          "params": {
+            "number": 10.0
+          },
+          "request": "Возведи 10 в квадрат"
+        }
+      ],
+      "name": "square",
+      "parameters": {
+        "properties": {
+          "number": {
+            "description": "Число для возведения в квадрат",
+            "type": "number"
+          }
+        },
+        "required": [
+          "number"
+        ],
+        "type": "object"
+      },
+      "returnParameters": {
+        "description": "Возвращает объект с массивом content, содержащим текстовое описание результата возведения в квадрат",
+        "properties": {
+          "content": {
+            "description": "Массив элементов содержимого с результатом вычисления",
+            "type": "array"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ],
+  "updateInterval": 0
+}
+

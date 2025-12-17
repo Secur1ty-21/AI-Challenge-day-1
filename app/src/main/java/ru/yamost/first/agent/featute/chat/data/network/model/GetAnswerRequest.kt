@@ -14,5 +14,7 @@ class GetAnswerRequest(
     @SerializedName("temperature")
     val temperature: Float,
     @SerializedName("messages")
-    val messageList: List<MessageDto>
+    val messageList: List<MessageDto>,
+    @SerializedName("functions")
+    val toolList: List<GigaToolDto>
 )

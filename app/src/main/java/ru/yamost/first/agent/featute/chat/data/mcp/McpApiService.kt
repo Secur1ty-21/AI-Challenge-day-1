@@ -7,19 +7,18 @@ import retrofit2.http.POST
 
 interface McpApiService {
 
-    @POST("sequentialthinking/mcp") // или ваш endpoint для MCP
+    @POST("mcp")
     suspend fun toolsList(
         @Body request: JsonRpcRequest
     ): Response<ResponseBody>
 
-    @POST("sequentialthinking/mcp")
+    @POST("mcp")
     suspend fun initialize(
         @Body request: JsonRpcRequest
     ): Response<ResponseBody>
 
-    // Для вызова конкретного инструмента
-  /*  @POST("/")
+    @POST("mcp")
     suspend fun toolCall(
         @Body request: JsonRpcRequest
-    ): Response<JsonRpcResponse>*/
+    ): Response<ResponseBody>
 }

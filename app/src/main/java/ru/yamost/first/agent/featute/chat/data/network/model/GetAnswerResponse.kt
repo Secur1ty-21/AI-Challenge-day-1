@@ -13,7 +13,9 @@ class GetAnswerResponse(
 
 class AnswerMessage(
     @SerializedName("message")
-    val message: MessageDto
+    val message: MessageDto,
+    @SerializedName("finish_reason")
+    val finishReason: String? = null,
 )
 
 class UsageDto(

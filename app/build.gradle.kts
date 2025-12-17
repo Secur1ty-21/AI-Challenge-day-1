@@ -30,6 +30,11 @@ android {
             name = "MODEL_API_KEY",
             value = "\"${localProps["MODEL_API_KEY"]}\""
         )
+        buildConfigField(
+            type = "String",
+            name = "MCP_BASE_URL",
+            value = "\"${localProps["MCP_BASE_URL"]}\""
+        )
     }
 
     buildTypes {

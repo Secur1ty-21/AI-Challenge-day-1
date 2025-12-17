@@ -3,7 +3,8 @@ package ru.yamost.first.agent.featute.chat.domain.model
 enum class MessageRole(val apiLabel: String) {
     SYSTEM("system"),
     USER("user"),
-    ASSISTANT("assistant");
+    ASSISTANT("assistant"),
+    FUNCTION("function");
 
     companion object {
         fun findByApiLabel(label: String): MessageRole {

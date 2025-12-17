@@ -587,6 +587,7 @@ fun MessageBubble(message: MessageUi, modifier: Modifier = Modifier) {
             MessageRole.USER -> Arrangement.End
             MessageRole.ASSISTANT -> Arrangement.Start
             MessageRole.SYSTEM -> Arrangement.Center
+            MessageRole.FUNCTION -> Arrangement.Center
         },
         modifier = modifier
             .padding(horizontal = 8.dp)
@@ -602,6 +603,7 @@ fun MessageBubble(message: MessageUi, modifier: Modifier = Modifier) {
                 MessageRole.USER -> YaColor.UserMessageBackground
                 MessageRole.ASSISTANT -> YaColor.AssistantMessageBackground
                 MessageRole.SYSTEM -> MaterialTheme.colorScheme.surfaceVariant
+                MessageRole.FUNCTION -> MaterialTheme.colorScheme.surfaceVariant
             },
             contentColor = Color.White,
             tonalElevation = 2.dp,

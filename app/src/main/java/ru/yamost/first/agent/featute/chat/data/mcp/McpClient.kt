@@ -6,12 +6,10 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
+import ru.yamost.first.agent.BuildConfig
 import java.util.concurrent.TimeUnit
 
 object McpClient {
-
-    private const val BASE_URL = "https://remote.mcpservers.org/"
-
     // Хранение текущего Session ID
     @Volatile
     private var currentSessionId: String? = null
@@ -36,7 +34,7 @@ object McpClient {
             val response = chain.proceed(requestBuilder.build())
 
             // Извлекаем Session ID из ответа если сервер его вернул
-            response.header("Mcp-Session-Id")?.let { sessionId ->
+            response.header("mcp-session-id")?.let { sessionId ->
                 currentSessionId = sessionId
                 Log.d("McpClient", "Received Session ID: $sessionId")
             }
@@ -52,7 +50,7 @@ object McpClient {
         .create()
 
     val retrofit: Retrofit = Retrofit.Builder()
-        .baseUrl(BASE_URL)
+        .baseUrl(BuildConfig.MCP_BASE_URL)
         .client(okHttpClient)
         .addConverterFactory(GsonConverterFactory.create(gson))
         .build()
