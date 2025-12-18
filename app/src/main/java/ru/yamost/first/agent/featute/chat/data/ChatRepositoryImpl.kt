@@ -50,7 +50,7 @@ class ChatRepositoryImpl(
                 body = GetAnswerRequest(
                     messageList = messageList.map { it.mapToData() },
                     temperature = temperature,
-                    toolList = listOf(getTool())
+                    toolList = getToolList()
                 ),
                 clientId = Installation.id(appDir),
                 sessionId = sessionId
@@ -99,7 +99,7 @@ class ChatRepositoryImpl(
                         add(getSummarySystemPrompt())
                     },
                     temperature = 0f,
-                    toolList = listOf(getTool())
+                    toolList = getToolList()
                 ),
                 clientId = Installation.id(appDir),
                 sessionId = sessionId
@@ -116,12 +116,12 @@ class ChatRepositoryImpl(
         }
     }
 
-    private suspend fun getTool(): GigaToolDto {
+    private suspend fun getToolList(): List<GigaToolDto> {
         val initialize = mcpRepository.initialize()
         initialize.onSuccess {
             mcpRepository.getToolsList().onSuccess { toolList ->
                 if (toolList.isNotEmpty()) {
-                    return toolList.first().mapToGigaTool()
+                    return toolList.map { it.mapToGigaTool() }
                 }
             }
         }

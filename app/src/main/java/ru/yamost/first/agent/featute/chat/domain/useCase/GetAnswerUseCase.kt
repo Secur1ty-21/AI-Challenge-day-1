@@ -45,7 +45,7 @@ class GetAnswerUseCase(
     }
 
     private companion object {
-        const val START_SUMMARY_COUNT = 3
+        const val START_SUMMARY_COUNT = 16
         val TAG = GetAnswerUseCase::class.simpleName ?: ""
     }
 }
