@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startPeriodicNotifications() {
-        val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
+        /*val workRequest = OneTimeWorkRequestBuilder<NotificationWorker>()
             .setInitialDelay(30, TimeUnit.SECONDS)
             .build()
 
@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
                 NotificationWorker.WORK_NAME,
                 ExistingWorkPolicy.REPLACE,
                 workRequest
-            )
+            )*/
     }
 }
 

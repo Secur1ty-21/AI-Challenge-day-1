@@ -48,7 +48,12 @@ class ChatRepositoryImpl(
             gigaService.getAnswer(
                 bearerToken = BEARER_FORMAT.format(tokenData.token),
                 body = GetAnswerRequest(
-                    messageList = messageList.map { it.mapToData() },
+                    messageList = messageList.map { it.mapToData() }.toMutableList().apply {
+                        add(0, MessageDto(
+                            text = "Отвечай коротко",
+                            role = MessageRole.SYSTEM.apiLabel
+                        ))
+                    },
                     temperature = temperature,
                     toolList = getToolList()
                 ),
