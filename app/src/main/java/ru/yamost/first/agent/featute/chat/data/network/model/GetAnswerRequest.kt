@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName
 
 class GetAnswerRequest(
     @SerializedName("model")
-    val model: String = AiModelType.MAX.apiLabel,
+    val model: String = AiModelType.LIGHT.apiLabel,
     @SerializedName("stream")
     val isStream: Boolean = false,
     @SerializedName("updateInterval")
