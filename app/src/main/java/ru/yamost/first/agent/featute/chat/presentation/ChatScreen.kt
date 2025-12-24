@@ -46,6 +46,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
@@ -306,7 +307,7 @@ private fun ChatContent(
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     IconButton(
                         onClick = { eventCallback(ChatEvent.ToggleMenuClick) },
@@ -322,8 +323,9 @@ private fun ChatContent(
                     }
 
                     Text(
+                        modifier = Modifier.weight(1f),
                         text = "Giga Chat API",
-                        fontSize = 20.sp,
+                        fontSize = 16.sp,
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -342,13 +344,22 @@ private fun ChatContent(
                             contentDescription = "Очистить",
                             modifier = Modifier.size(18.dp)
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Новый диалог",
                             fontSize = 14.sp,
                             fontWeight = FontWeight.Medium
                         )
                     }
+                }
+
+                Row(modifier = Modifier.padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "RAG", fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Switch(
+                        modifier = Modifier.padding(start = 4.dp),
+                        checked = state.isRagChecked,
+                        onCheckedChange = { eventCallback(ChatEvent.ToggleRag) }
+                    )
                 }
 
                 Row(

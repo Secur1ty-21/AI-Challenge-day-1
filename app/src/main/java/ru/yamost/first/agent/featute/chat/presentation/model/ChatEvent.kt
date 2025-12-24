@@ -7,5 +7,6 @@ sealed interface ChatEvent {
     object BtnClearClick : ChatEvent
     object BtnToggleTemperatureClick : ChatEvent
     object ToggleMenuClick : ChatEvent
+    object ToggleRag : ChatEvent
     class SelectDialog(val dialogId: String) : ChatEvent
 }

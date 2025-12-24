@@ -16,14 +16,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.content.ContextCompat
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
 import ru.yamost.first.agent.featute.chat.presentation.ChatScreen
-import ru.yamost.first.agent.featute.notification.task.NotificationWorker
 import ru.yamost.first.agent.ui.theme.FirstAgentTheme
 import ru.yamost.first.agent.ui.theme.YaColor
-import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
     private val notificationPermissionLauncher = registerForActivityResult(

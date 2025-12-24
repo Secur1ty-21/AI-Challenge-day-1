@@ -41,8 +41,8 @@ object McpClient {
 
             response
         }
-        .connectTimeout(60, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .connectTimeout(240, TimeUnit.SECONDS)
+        .readTimeout(240, TimeUnit.SECONDS)
         .build()
 
     private val gson = GsonBuilder()

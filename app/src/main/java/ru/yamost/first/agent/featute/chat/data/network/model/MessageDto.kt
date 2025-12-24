@@ -4,7 +4,7 @@ import com.google.gson.annotations.SerializedName
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 
-class MessageDto(
+data class MessageDto(
     @SerializedName("content")
     val text: String,
     @SerializedName("role")

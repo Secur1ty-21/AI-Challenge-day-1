@@ -6,7 +6,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import ru.yamost.first.agent.core.domain.YaResult
 import ru.yamost.first.agent.core.presentation.BaseViewModel
-import ru.yamost.first.agent.featute.chat.data.mcp.McpRepository
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAllDialogsUseCase
@@ -79,6 +78,12 @@ class ChatViewModel(
                 }
             }
 
+            is ChatEvent.ToggleRag -> {
+                _state.update {
+                    it.copy(isRagChecked = !it.isRagChecked)
+                }
+            }
+
             is ChatEvent.BtnClearClick -> {
                 sessionId = ""
                 _state.update {
@@ -119,7 +124,8 @@ class ChatViewModel(
                         val answerResult = getAnswerUseCase.execute(
                             story = newStory.map { it.mapToDomain() },
                             temperature = temperature,
-                            sessionId = sessionId
+                            sessionId = sessionId,
+                            withRag = _state.value.isRagChecked
                         )
                         when (answerResult) {
                             is YaResult.Success -> {

@@ -3,7 +3,6 @@ package ru.yamost.first.agent.featute.chat.data.mcp
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.google.gson.annotations.SerializedName
 
 class McpRepository {
 

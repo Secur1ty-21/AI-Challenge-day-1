@@ -11,5 +11,6 @@ data class ChatState(
     val usage: Usage? = null,
     val isTemperatureVisible: Boolean = false,
     val isMenuOpen: Boolean = false,
+    val isRagChecked: Boolean = false,
     val dialogs: List<ChatDialog> = emptyList()
 )

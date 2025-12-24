@@ -10,7 +10,12 @@ import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 class GetAnswerUseCase(
     private val chatRepository: ChatRepository
 ) {
-    suspend fun execute(story: List<Message>, temperature: Float, sessionId: String): YaResult<Answer, Unit> {
+    suspend fun execute(
+        story: List<Message>,
+        temperature: Float,
+        sessionId: String,
+        withRag: Boolean
+    ): YaResult<Answer, Unit> {
         val userMessageCount = story.count { it.role == MessageRole.USER }
         return if (userMessageCount > START_SUMMARY_COUNT) {
             var count = 0
@@ -21,26 +26,32 @@ class GetAnswerUseCase(
                 count != START_SUMMARY_COUNT + 2
             }
             Log.v(TAG, "take messages length = ${lastUserMessages.size}")
-            when (val summaryResult = chatRepository.summary(lastUserMessages.dropLast(1), sessionId)) {
+            when (val summaryResult =
+                chatRepository.summary(lastUserMessages.dropLast(1), sessionId)) {
                 is YaResult.Success -> {
                     val shortStory = listOf(summaryResult.data.message, lastUserMessages.last())
-                    when (val answerResult = chatRepository.getAnswer(shortStory, temperature, sessionId)) {
-                        is YaResult.Success -> YaResult.Success(Answer(
-                            message = Message(
-                                text = "# Суммаризация для сжатия контекста\n${summaryResult.data.message.text}" +
-                                        "\n\n# Ответ\n${answerResult.data.message.text}",
-                                role = answerResult.data.message.role,
-                                timestamp = answerResult.data.message.timestamp
-                            ),
-                            usage = answerResult.data.usage
-                        ))
+                    when (val answerResult =
+                        chatRepository.getAnswer(shortStory, temperature, sessionId, withRag)) {
+                        is YaResult.Success -> YaResult.Success(
+                            Answer(
+                                message = Message(
+                                    text = "# Суммаризация для сжатия контекста\n${summaryResult.data.message.text}" +
+                                            "\n\n# Ответ\n${answerResult.data.message.text}",
+                                    role = answerResult.data.message.role,
+                                    timestamp = answerResult.data.message.timestamp
+                                ),
+                                usage = answerResult.data.usage
+                            )
+                        )
+
                         is YaResult.Failure -> answerResult
                     }
                 }
+
                 is YaResult.Failure -> YaResult.Failure(Unit)
             }
         } else {
-            chatRepository.getAnswer(story, temperature, sessionId)
+            chatRepository.getAnswer(story, temperature, sessionId, withRag)
         }
     }
 

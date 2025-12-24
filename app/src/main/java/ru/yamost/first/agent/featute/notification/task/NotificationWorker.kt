@@ -40,7 +40,8 @@ class NotificationWorker(
             when (val result = getAnswerUseCase.execute(
                 story = listOf(userMessage),
                 temperature = 0f,
-                sessionId = sessionId
+                sessionId = sessionId,
+                withRag = true
             )) {
                 is YaResult.Success -> {
                     showNotification(result.data.message.text)

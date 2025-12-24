@@ -37,11 +37,24 @@ class ChatRepositoryImpl(
     override suspend fun getAnswer(
         messageList: List<Message>,
         temperature: Float,
-        sessionId: String
+        sessionId: String,
+        withRag: Boolean
     ): YaResult<Answer, Unit> {
         val tokenData = when (val tokenResult = getToken()) {
             is YaResult.Success -> tokenResult.data
             is YaResult.Failure -> return YaResult.Failure(Unit)
+        }
+        val toolList = getToolList()
+        val ragSearch = if (withRag) {
+            "\nRAG-info\n" + mcpRepository.callTool(
+                toolName = "embeddings",
+                arguments = mapOf(
+                    "action" to "search",
+                    "query" to messageList.last().text
+                )
+            ).getOrThrow()
+        } else {
+            ""
         }
         chatStorage.saveMessage(messageList.last(), sessionId)
         val getAnswerResponse = runCatching {
@@ -53,9 +66,13 @@ class ChatRepositoryImpl(
                             text = "Отвечай коротко",
                             role = MessageRole.SYSTEM.apiLabel
                         ))
+                        val lastMessage = last()
+                        set(lastIndex, get(lastIndex).copy(
+                            text = lastMessage.text + ragSearch
+                        ))
                     },
                     temperature = temperature,
-                    toolList = getToolList()
+                    toolList = toolList
                 ),
                 clientId = Installation.id(appDir),
                 sessionId = sessionId
@@ -77,7 +94,7 @@ class ChatRepositoryImpl(
                         add(functionMessage.mapToDomain())
                     }
                     delay(2000)
-                    return getAnswer(newMessageList, temperature, sessionId)
+                    return getAnswer(newMessageList, temperature, sessionId, withRag)
                 }
             }
 
