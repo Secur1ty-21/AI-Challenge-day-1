@@ -9,4 +9,10 @@ sealed interface ChatEvent {
     object ToggleMenuClick : ChatEvent
     object ToggleRag : ChatEvent
     class SelectDialog(val dialogId: String) : ChatEvent
+    class DeleteDialog(val dialogId: String) : ChatEvent
+    object ConfirmDeleteDialog : ChatEvent
+    object DismissDeleteDialog : ChatEvent
+    object ClearAllHistory : ChatEvent
+    object ConfirmClearAllHistory : ChatEvent
+    object DismissClearAllHistory : ChatEvent
 }

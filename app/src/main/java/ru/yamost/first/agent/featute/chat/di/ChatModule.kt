@@ -19,6 +19,8 @@ import ru.yamost.first.agent.featute.chat.data.storage.TokenRepositoryImpl
 import ru.yamost.first.agent.featute.chat.domain.api.ChatRepository
 import ru.yamost.first.agent.featute.chat.domain.api.ChatStorage
 import ru.yamost.first.agent.featute.chat.domain.api.TokenRepository
+import ru.yamost.first.agent.featute.chat.domain.useCase.ClearAllHistoryUseCase
+import ru.yamost.first.agent.featute.chat.domain.useCase.DeleteDialogUseCase
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAllDialogsUseCase
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAnswerUseCase
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetDialogHistoryByIdUseCase
@@ -139,11 +141,24 @@ val chatModule = module {
         GetDialogHistoryByIdUseCase(chatStorage = get())
     }
 
+    factory {
+        DeleteDialogUseCase(chatStorage = get())
+    }
+
+    factory {
+        ClearAllHistoryUseCase(
+            chatStorage = get(),
+            getAllDialogsUseCase = get()
+        )
+    }
+
     viewModel {
         ChatViewModel(
             getAnswerUseCase = get(),
             getAllDialogsUseCase = get(),
-            getDialogHistoryByIdUseCase = get()
+            getDialogHistoryByIdUseCase = get(),
+            deleteDialogUseCase = get(),
+            clearAllHistoryUseCase = get()
         )
     }
 }

@@ -45,9 +45,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -107,6 +109,12 @@ fun ChatScreen(
                         }
                     }
                 },
+                onClearHistory = {
+                    viewModel.obtainEvent(ChatEvent.ClearAllHistory)
+                },
+                onDeleteDialog = { dialogId ->
+                    viewModel.obtainEvent(ChatEvent.DeleteDialog(dialogId))
+                },
                 modifier = Modifier.fillMaxWidth(0.8f)
             )
         }
@@ -124,6 +132,20 @@ fun ChatScreen(
             }
         }
     }
+
+    if (state.showDeleteConfirmDialog) {
+        DeleteConfirmDialog(
+            onConfirm = { viewModel.obtainEvent(ChatEvent.ConfirmDeleteDialog) },
+            onDismiss = { viewModel.obtainEvent(ChatEvent.DismissDeleteDialog) }
+        )
+    }
+
+    if (state.showClearAllConfirmDialog) {
+        ClearAllHistoryConfirmDialog(
+            onConfirm = { viewModel.obtainEvent(ChatEvent.ConfirmClearAllHistory) },
+            onDismiss = { viewModel.obtainEvent(ChatEvent.DismissClearAllHistory) }
+        )
+    }
 }
 
 @Composable
@@ -131,6 +153,8 @@ private fun DrawerContent(
     state: ChatState,
     onDialogSelected: (String) -> Unit,
     onClose: () -> Unit,
+    onClearHistory: () -> Unit,
+    onDeleteDialog: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     Column(
@@ -153,11 +177,24 @@ private fun DrawerContent(
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-            IconButton(onClick = onClose) {
-                Icon(
-                    imageVector = Icons.Default.Close,
-                    contentDescription = "Закрыть меню"
-                )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onClearHistory) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_delete_sweep),
+                        contentDescription = "Очистить всю историю",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                IconButton(onClick = onClose) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Закрыть меню",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
 
@@ -195,6 +232,7 @@ private fun DrawerContent(
                     DialogItem(
                         dialog = dialog,
                         onClick = { onDialogSelected(dialog.id) },
+                        onDelete = { onDeleteDialog(dialog.id) },
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 4.dp)
@@ -209,6 +247,7 @@ private fun DrawerContent(
 private fun DialogItem(
     dialog: ChatDialog,
     onClick: () -> Unit,
+    onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -220,55 +259,70 @@ private fun DialogItem(
         shape = RoundedCornerShape(12.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(12.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = dialog.title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (dialog.lastMessage.isNotEmpty()) {
-                Text(
-                    text = dialog.lastMessage,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Text(
-                    text = dialog.lastMessageTimestamp.format(
-                        DateTimeFormatter.ofPattern("dd.MM HH:mm", Locale.ENGLISH)
-                    ),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    text = dialog.title,
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
 
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                ) {
+                if (dialog.lastMessage.isNotEmpty()) {
                     Text(
-                        text = "${dialog.messageCount}",
-                        fontSize = 12.sp
+                        text = dialog.lastMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                 }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = dialog.lastMessageTimestamp.format(
+                            DateTimeFormatter.ofPattern("dd.MM HH:mm", Locale.ENGLISH)
+                        ),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ) {
+                        Text(
+                            text = "${dialog.messageCount}",
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+
+            IconButton(
+                onClick = { onDelete() },
+                modifier = Modifier.size(40.dp)
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_delete),
+                    contentDescription = "Удалить диалог",
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
@@ -648,4 +702,56 @@ fun MessageBubble(message: MessageUi, modifier: Modifier = Modifier) {
             }
         }
     }
+}
+
+@Composable
+private fun DeleteConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = "Удалить диалог?")
+        },
+        text = {
+            Text(text = "Вы уверены, что хотите удалить этот диалог? Это действие необратимо.")
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Удалить", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
+}
+
+@Composable
+private fun ClearAllHistoryConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = "Очистить всю историю?")
+        },
+        text = {
+            Text(text = "Вы уверены, что хотите удалить все диалоги? Это действие необратимо.")
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text("Очистить всё", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Отмена")
+            }
+        }
+    )
 }

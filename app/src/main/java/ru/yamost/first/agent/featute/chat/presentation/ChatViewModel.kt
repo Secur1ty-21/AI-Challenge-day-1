@@ -8,6 +8,8 @@ import ru.yamost.first.agent.core.domain.YaResult
 import ru.yamost.first.agent.core.presentation.BaseViewModel
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
+import ru.yamost.first.agent.featute.chat.domain.useCase.ClearAllHistoryUseCase
+import ru.yamost.first.agent.featute.chat.domain.useCase.DeleteDialogUseCase
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAllDialogsUseCase
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetAnswerUseCase
 import ru.yamost.first.agent.featute.chat.domain.useCase.GetDialogHistoryByIdUseCase
@@ -23,7 +25,9 @@ import java.util.UUID
 class ChatViewModel(
     private val getAnswerUseCase: GetAnswerUseCase,
     private val getAllDialogsUseCase: GetAllDialogsUseCase,
-    private val getDialogHistoryByIdUseCase: GetDialogHistoryByIdUseCase
+    private val getDialogHistoryByIdUseCase: GetDialogHistoryByIdUseCase,
+    private val deleteDialogUseCase: DeleteDialogUseCase,
+    private val clearAllHistoryUseCase: ClearAllHistoryUseCase
 ) : BaseViewModel() {
     private val _state = MutableStateFlow(ChatState())
     val state = _state.asStateFlow()
@@ -199,6 +203,96 @@ class ChatViewModel(
                         _state.update { it.copy(isLoading = false) }
                     }
                 )
+            }
+
+            is ChatEvent.DeleteDialog -> {
+                _state.update {
+                    it.copy(
+                        showDeleteConfirmDialog = true,
+                        dialogToDelete = event.dialogId
+                    )
+                }
+            }
+
+            is ChatEvent.ConfirmDeleteDialog -> {
+                runSafely(
+                    block = {
+                        state.value.dialogToDelete?.let { dialogId ->
+                            deleteDialogUseCase.execute(dialogId)
+                            loadDialogs()
+
+                            if (sessionId == dialogId) {
+                                sessionId = ""
+                                _state.update {
+                                    it.copy(
+                                        story = emptyList(),
+                                        showDeleteConfirmDialog = false,
+                                        dialogToDelete = null,
+                                        isMenuOpen = false
+                                    )
+                                }
+                            } else {
+                                _state.update {
+                                    it.copy(
+                                        showDeleteConfirmDialog = false,
+                                        dialogToDelete = null
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    onError = {
+                        _state.update {
+                            it.copy(
+                                showDeleteConfirmDialog = false,
+                                dialogToDelete = null
+                            )
+                        }
+                    }
+                )
+            }
+
+            is ChatEvent.DismissDeleteDialog -> {
+                _state.update {
+                    it.copy(
+                        showDeleteConfirmDialog = false,
+                        dialogToDelete = null
+                    )
+                }
+            }
+
+            is ChatEvent.ClearAllHistory -> {
+                _state.update {
+                    it.copy(showClearAllConfirmDialog = true)
+                }
+            }
+
+            is ChatEvent.ConfirmClearAllHistory -> {
+                runSafely(
+                    block = {
+                        clearAllHistoryUseCase.execute()
+                        sessionId = ""
+                        _state.update {
+                            it.copy(
+                                dialogs = emptyList(),
+                                story = emptyList(),
+                                showClearAllConfirmDialog = false,
+                                isMenuOpen = false
+                            )
+                        }
+                    },
+                    onError = {
+                        _state.update {
+                            it.copy(showClearAllConfirmDialog = false)
+                        }
+                    }
+                )
+            }
+
+            is ChatEvent.DismissClearAllHistory -> {
+                _state.update {
+                    it.copy(showClearAllConfirmDialog = false)
+                }
             }
         }
     }
