@@ -4,6 +4,7 @@ import android.util.Log
 import ru.yamost.first.agent.core.domain.YaResult
 import ru.yamost.first.agent.featute.chat.domain.api.ChatRepository
 import ru.yamost.first.agent.featute.chat.domain.model.Answer
+import ru.yamost.first.agent.featute.chat.domain.model.ChatError
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 
@@ -15,7 +16,7 @@ class GetAnswerUseCase(
         temperature: Float,
         sessionId: String,
         withRag: Boolean
-    ): YaResult<Answer, Unit> {
+    ): YaResult<Answer, ChatError> {
         val userMessageCount = story.count { it.role == MessageRole.USER }
         return if (userMessageCount > START_SUMMARY_COUNT) {
             var count = 0
@@ -40,7 +41,8 @@ class GetAnswerUseCase(
                                     role = answerResult.data.message.role,
                                     timestamp = answerResult.data.message.timestamp
                                 ),
-                                usage = answerResult.data.usage
+                                usage = answerResult.data.usage,
+                                mcpError = summaryResult.data.mcpError ?: answerResult.data.mcpError
                             )
                         )
 
@@ -48,7 +50,7 @@ class GetAnswerUseCase(
                     }
                 }
 
-                is YaResult.Failure -> YaResult.Failure(Unit)
+                is YaResult.Failure -> summaryResult
             }
         } else {
             chatRepository.getAnswer(story, temperature, sessionId, withRag)

@@ -8,7 +8,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -37,7 +36,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             FirstAgentTheme {
                 Scaffold(
-                    modifier = Modifier.background(color = YaColor.ChatBackground).fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    containerColor = YaColor.ChatBackground
                 ) { innerPadding ->
                     ChatScreen(
                         systemPadding = innerPadding

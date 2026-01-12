@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">FirstAgent</string>
+
+    <string name="mcp_error_connection">Ошибка соединения с MCP сервером</string>
+    <string name="mcp_error_unavailable">MCP сервер недоступен</string>
+    <string name="mcp_error_initialization">Ошибка инициализации MCP</string>
+    <string name="mcp_error_tool_call">Ошибка вызова инструмента MCP</string>
+    <string name="mcp_error_unknown">Ошибка MCP: %1$s</string>
 </resources>

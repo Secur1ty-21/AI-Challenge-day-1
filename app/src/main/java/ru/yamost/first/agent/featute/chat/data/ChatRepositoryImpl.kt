@@ -21,6 +21,8 @@ import ru.yamost.first.agent.featute.chat.domain.api.ChatStorage
 import ru.yamost.first.agent.featute.chat.domain.api.TokenRepository
 import ru.yamost.first.agent.featute.chat.domain.model.AccessTokenData
 import ru.yamost.first.agent.featute.chat.domain.model.Answer
+import ru.yamost.first.agent.featute.chat.domain.model.ChatError
+import ru.yamost.first.agent.featute.chat.domain.model.McpError
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import java.io.File
@@ -39,23 +41,40 @@ class ChatRepositoryImpl(
         temperature: Float,
         sessionId: String,
         withRag: Boolean
-    ): YaResult<Answer, Unit> {
+    ): YaResult<Answer, ChatError> {
         val tokenData = when (val tokenResult = getToken()) {
             is YaResult.Success -> tokenResult.data
-            is YaResult.Failure -> return YaResult.Failure(Unit)
+            is YaResult.Failure -> return YaResult.Failure(ChatError.Network)
         }
-        val toolList = getToolList()
-        val ragSearch = if (withRag) {
-            "\nRAG-info\n" + mcpRepository.callTool(
+
+        var mcpError: McpError? = null
+
+        val toolList = when (val toolsResult = getToolList()) {
+            is YaResult.Success -> toolsResult.data
+            is YaResult.Failure -> {
+                mcpError = toolsResult.error
+                emptyList()
+            }
+        }
+
+        val ragSearch = if (withRag && mcpError == null) {
+            when (val ragResult = mcpRepository.callTool(
                 toolName = "embeddings",
                 arguments = mapOf(
                     "action" to "search",
                     "query" to messageList.last().text
                 )
-            ).getOrThrow()
+            )) {
+                is YaResult.Success -> "\nRAG-info\n" + ragResult.data
+                is YaResult.Failure -> {
+                    mcpError = ragResult.error
+                    ""
+                }
+            }
         } else {
             ""
         }
+
         chatStorage.saveMessage(messageList.last(), sessionId)
         val getAnswerResponse = runCatching {
             gigaService.getAnswer(
@@ -63,7 +82,7 @@ class ChatRepositoryImpl(
                 body = GetAnswerRequest(
                     messageList = messageList.map { it.mapToData() }.toMutableList().apply {
                         add(0, MessageDto(
-                            text = "Отвечай коротко",
+                            text = "Отвечай коротко. Если ты использовал информацию из RAG-info для ответа, обязательно укажи это в конце ответа в формате: \"Источник: RAG\". Если информация из твоих собственных знаний, укажи: \"Источник: база знаний модели\".",
                             role = MessageRole.SYSTEM.apiLabel
                         ))
                         val lastMessage = last()
@@ -79,38 +98,51 @@ class ChatRepositoryImpl(
             )
         }.onFailure {
             it.printStackTrace()
-        }.getOrNull() ?: return YaResult.Failure(Unit)
+        }.getOrNull() ?: return YaResult.Failure(ChatError.Network)
         val body = getAnswerResponse.body()
 
         if (getAnswerResponse.isSuccessful && body != null) {
             val answerMessage = body.messageList.firstOrNull()
             val finishReason = answerMessage?.finishReason.orEmpty()
             if (FinishReason.findByApiLabel(finishReason) == FinishReason.FUNCTION_CALL) {
-                runCatching {
-                    useTool(answerMessage?.message!!)
-                }.onSuccess { functionMessage ->
-                    val newMessageList = messageList.toMutableList().apply {
-                        add(answerMessage!!.message.mapToDomain())
-                        add(functionMessage.mapToDomain())
+                val useToolResult = useTool(answerMessage?.message!!)
+                when (useToolResult) {
+                    is YaResult.Success -> {
+                        val newMessageList = messageList.toMutableList().apply {
+                            add(answerMessage.message.mapToDomain())
+                            add(useToolResult.data.mapToDomain())
+                        }
+                        delay(2000)
+                        return getAnswer(newMessageList, temperature, sessionId, withRag = false)
                     }
-                    delay(2000)
-                    return getAnswer(newMessageList, temperature, sessionId, withRag)
+                    is YaResult.Failure -> {
+                        mcpError = useToolResult.error
+                        val answer = body.mapToDomain(mcpError)
+                        chatStorage.saveMessage(answer.message, sessionId)
+                        return YaResult.Success(answer)
+                    }
                 }
             }
 
-            val answer = body.mapToDomain()
+            val answer = body.mapToDomain(mcpError)
             chatStorage.saveMessage(answer.message, sessionId)
-            return YaResult.Success(body.mapToDomain())
+            return YaResult.Success(answer)
         } else {
-            return YaResult.Failure(Unit)
+            return YaResult.Failure(ChatError.Network)
         }
     }
 
-    override suspend fun summary(messageList: List<Message>, sessionId: String): YaResult<Answer, Unit> {
+    override suspend fun summary(messageList: List<Message>, sessionId: String): YaResult<Answer, ChatError> {
         val tokenData = when (val tokenResult = getToken()) {
             is YaResult.Success -> tokenResult.data
-            is YaResult.Failure -> return YaResult.Failure(Unit)
+            is YaResult.Failure -> return YaResult.Failure(ChatError.Network)
         }
+
+        val toolList = when (val toolsResult = getToolList()) {
+            is YaResult.Success -> toolsResult.data
+            is YaResult.Failure -> return YaResult.Failure(ChatError.Mcp(toolsResult.error))
+        }
+
         val getAnswerResponse = runCatching {
             gigaService.getAnswer(
                 bearerToken = BEARER_FORMAT.format(tokenData.token),
@@ -121,49 +153,57 @@ class ChatRepositoryImpl(
                         add(getSummarySystemPrompt())
                     },
                     temperature = 0f,
-                    toolList = getToolList()
+                    toolList = toolList
                 ),
                 clientId = Installation.id(appDir),
                 sessionId = sessionId
             )
         }.onFailure {
             it.printStackTrace()
-        }.getOrNull() ?: return YaResult.Failure(Unit)
+        }.getOrNull() ?: return YaResult.Failure(ChatError.Network)
         val body = getAnswerResponse.body()
 
         return if (getAnswerResponse.isSuccessful && body != null) {
             YaResult.Success(body.mapToDomain())
         } else {
-            YaResult.Failure(Unit)
+            YaResult.Failure(ChatError.Network)
         }
     }
 
-    private suspend fun getToolList(): List<GigaToolDto> {
-        val initialize = mcpRepository.initialize()
-        initialize.onSuccess {
-            mcpRepository.getToolsList().onSuccess { toolList ->
-                if (toolList.isNotEmpty()) {
-                    return toolList.map { it.mapToGigaTool() }
+    private suspend fun getToolList(): YaResult<List<GigaToolDto>, McpError> {
+        return when (val initResult = mcpRepository.initialize()) {
+            is YaResult.Success -> {
+                when (val toolsResult = mcpRepository.getToolsList()) {
+                    is YaResult.Success -> {
+                        if (toolsResult.data.isNotEmpty()) {
+                            YaResult.Success(toolsResult.data.map { it.mapToGigaTool() })
+                        } else {
+                            YaResult.Failure(McpError.ToolCallFailed)
+                        }
+                    }
+                    is YaResult.Failure -> YaResult.Failure(toolsResult.error)
                 }
             }
+            is YaResult.Failure -> YaResult.Failure(initResult.error)
         }
-        throw IllegalStateException()
     }
 
-    private suspend fun useTool(messageDto: MessageDto): MessageDto {
+    private suspend fun useTool(messageDto: MessageDto): YaResult<MessageDto, McpError> {
         val function = messageDto.functionCall!!
-        mcpRepository.callTool(
+        return when (val callResult = mcpRepository.callTool(
             toolName = function.name,
             arguments = function.arguments
-        ).onSuccess { responseMessage ->
-            return MessageDto(
-                text = responseMessage,
-                role = MessageRole.FUNCTION.apiLabel,
-                functionsStateId = null,
-                functionName = function.name
+        )) {
+            is YaResult.Success -> YaResult.Success(
+                MessageDto(
+                    text = callResult.data,
+                    role = MessageRole.FUNCTION.apiLabel,
+                    functionsStateId = null,
+                    functionName = function.name
+                )
             )
+            is YaResult.Failure -> YaResult.Failure(callResult.error)
         }
-        throw IllegalStateException()
     }
 
     private suspend fun getToken(): YaResult<AccessTokenData, Unit> {

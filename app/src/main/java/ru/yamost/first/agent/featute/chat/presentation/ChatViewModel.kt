@@ -4,8 +4,11 @@ import android.util.Log
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import ru.yamost.first.agent.R
 import ru.yamost.first.agent.core.domain.YaResult
 import ru.yamost.first.agent.core.presentation.BaseViewModel
+import ru.yamost.first.agent.featute.chat.domain.model.ChatError
+import ru.yamost.first.agent.featute.chat.domain.model.McpError
 import ru.yamost.first.agent.featute.chat.domain.model.Message
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
 import ru.yamost.first.agent.featute.chat.domain.useCase.ClearAllHistoryUseCase
@@ -152,26 +155,27 @@ class ChatViewModel(
                                         usage = answerResult.data.usage
                                     )
                                 }
+                                answerResult.data.mcpError?.let { mcpError ->
+                                    _action.value = mcpError.toAction()
+                                }
                                 loadDialogs()
                             }
 
                             is YaResult.Failure -> {
                                 _state.update {
-                                    it.copy(
-                                        isLoading = false
-                                    )
+                                    it.copy(isLoading = false)
                                 }
-                                Log.v(TAG, "failure get answer result")
+                                _action.value = answerResult.error.toAction()
+                                Log.v(TAG, "failure get answer result: ${answerResult.error}")
                             }
                         }
                     },
                     onError = { error ->
                         Log.e(TAG, "error in obtain btn send click", error)
                         _state.update {
-                            it.copy(
-                                isLoading = false
-                            )
+                            it.copy(isLoading = false)
                         }
+                        _action.value = ChatAction.ShowError(R.string.mcp_error_unknown, error.message)
                     }
                 )
             }
@@ -313,6 +317,28 @@ class ChatViewModel(
             role = role,
             timestamp = sdf.parse(timestamp)?.time ?: System.currentTimeMillis()
         )
+    }
+
+    fun clearAction() {
+        _action.value = null
+    }
+
+    private fun ChatError.toAction(): ChatAction.ShowError {
+        return when (this) {
+            is ChatError.Mcp -> error.toAction()
+            is ChatError.Network -> ChatAction.ShowError(R.string.mcp_error_connection)
+            is ChatError.Unknown -> ChatAction.ShowError(R.string.mcp_error_unknown, "")
+        }
+    }
+
+    private fun McpError.toAction(): ChatAction.ShowError {
+        return when (this) {
+            is McpError.ConnectionError -> ChatAction.ShowError(R.string.mcp_error_connection)
+            is McpError.ServerUnavailable -> ChatAction.ShowError(R.string.mcp_error_unavailable)
+            is McpError.InitializationFailed -> ChatAction.ShowError(R.string.mcp_error_initialization)
+            is McpError.ToolCallFailed -> ChatAction.ShowError(R.string.mcp_error_tool_call)
+            is McpError.Unknown -> ChatAction.ShowError(R.string.mcp_error_unknown, message)
+        }
     }
 
     private companion object {

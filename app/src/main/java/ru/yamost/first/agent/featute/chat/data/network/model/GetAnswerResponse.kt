@@ -2,6 +2,7 @@ package ru.yamost.first.agent.featute.chat.data.network.model
 
 import com.google.gson.annotations.SerializedName
 import ru.yamost.first.agent.featute.chat.domain.model.Answer
+import ru.yamost.first.agent.featute.chat.domain.model.McpError
 import ru.yamost.first.agent.featute.chat.domain.model.Usage
 
 class GetAnswerResponse(
@@ -29,10 +30,11 @@ class UsageDto(
     val totalTokens: Long
 )
 
-fun GetAnswerResponse.mapToDomain(): Answer {
+fun GetAnswerResponse.mapToDomain(mcpError: McpError? = null): Answer {
     return Answer(
         message = messageList.first().message.mapToDomain(),
-        usage = usage.mapToDomain()
+        usage = usage.mapToDomain(),
+        mcpError = mcpError
     )
 }
 

@@ -3,6 +3,7 @@ package ru.yamost.first.agent.featute.chat.presentation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -42,10 +43,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Snackbar
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -53,11 +58,13 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -69,6 +76,7 @@ import org.koin.androidx.compose.koinViewModel
 import ru.yamost.first.agent.R
 import ru.yamost.first.agent.featute.chat.domain.model.ChatDialog
 import ru.yamost.first.agent.featute.chat.domain.model.MessageRole
+import ru.yamost.first.agent.featute.chat.presentation.model.ChatAction
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatEvent
 import ru.yamost.first.agent.featute.chat.presentation.model.ChatState
 import ru.yamost.first.agent.featute.chat.presentation.model.MessageUi
@@ -82,41 +90,63 @@ fun ChatScreen(
     systemPadding: PaddingValues
 ) {
     val state = viewModel.state.collectAsStateWithLifecycle().value
+    val action = viewModel.action.collectAsStateWithLifecycle().value
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    ModalNavigationDrawer(
+    action?.let { currentAction ->
+        when (currentAction) {
+            is ChatAction.ShowError -> {
+                val message = if (currentAction.formatArg != null) {
+                    stringResource(currentAction.messageResId, currentAction.formatArg)
+                } else {
+                    stringResource(currentAction.messageResId)
+                }
+                LaunchedEffect(currentAction) {
+                    snackbarHostState.showSnackbar(message)
+                    viewModel.clearAction()
+                }
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        ModalNavigationDrawer(
         modifier = Modifier.padding(systemPadding),
         drawerState = drawerState,
-        gesturesEnabled = false,
+        gesturesEnabled = true,
         drawerContent = {
-            DrawerContent(
-                state = state,
-                onDialogSelected = { dialogId ->
-                    viewModel.obtainEvent(ChatEvent.SelectDialog(dialogId))
-                    scope.launch {
-                        drawerState.close()
-                        if (state.isMenuOpen) {
-                            viewModel.obtainEvent(ChatEvent.ToggleMenuClick)
+            ModalDrawerSheet(
+                modifier = Modifier.fillMaxWidth(0.85f)
+            ) {
+                DrawerContent(
+                    state = state,
+                    onDialogSelected = { dialogId ->
+                        viewModel.obtainEvent(ChatEvent.SelectDialog(dialogId))
+                        scope.launch {
+                            drawerState.close()
+                            if (state.isMenuOpen) {
+                                viewModel.obtainEvent(ChatEvent.ToggleMenuClick)
+                            }
                         }
-                    }
-                },
-                onClose = {
-                    scope.launch {
-                        drawerState.close()
-                        if (state.isMenuOpen) {
-                            viewModel.obtainEvent(ChatEvent.ToggleMenuClick)
+                    },
+                    onClose = {
+                        scope.launch {
+                            drawerState.close()
+                            if (state.isMenuOpen) {
+                                viewModel.obtainEvent(ChatEvent.ToggleMenuClick)
+                            }
                         }
+                    },
+                    onClearHistory = {
+                        viewModel.obtainEvent(ChatEvent.ClearAllHistory)
+                    },
+                    onDeleteDialog = { dialogId ->
+                        viewModel.obtainEvent(ChatEvent.DeleteDialog(dialogId))
                     }
-                },
-                onClearHistory = {
-                    viewModel.obtainEvent(ChatEvent.ClearAllHistory)
-                },
-                onDeleteDialog = { dialogId ->
-                    viewModel.obtainEvent(ChatEvent.DeleteDialog(dialogId))
-                },
-                modifier = Modifier.fillMaxWidth(0.8f)
-            )
+                )
+            }
         }
     ) {
         ChatContent(
@@ -126,10 +156,30 @@ fun ChatScreen(
         )
         LaunchedEffect(state.isMenuOpen) {
             if (state.isMenuOpen && drawerState.isClosed) {
-                scope.launch { drawerState.open() }
-            } else if (state.isMenuOpen.not() && drawerState.isOpen) {
-                scope.launch { drawerState.close() }
+                drawerState.open()
+            } else if (!state.isMenuOpen && drawerState.isOpen) {
+                drawerState.close()
             }
+        }
+
+        LaunchedEffect(drawerState.isClosed) {
+            if (drawerState.isClosed && state.isMenuOpen) {
+                viewModel.obtainEvent(ChatEvent.ToggleMenuClick)
+            }
+        }
+        }
+
+        SnackbarHost(
+            hostState = snackbarHostState,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = systemPadding.calculateTopPadding() + 8.dp)
+        ) { snackbarData ->
+            Snackbar(
+                snackbarData = snackbarData,
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer
+            )
         }
     }
 
@@ -154,14 +204,10 @@ private fun DrawerContent(
     onDialogSelected: (String) -> Unit,
     onClose: () -> Unit,
     onClearHistory: () -> Unit,
-    onDeleteDialog: (String) -> Unit,
-    modifier: Modifier = Modifier
+    onDeleteDialog: (String) -> Unit
 ) {
     Column(
-        modifier = modifier
-            .safeDrawingPadding()
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface)
+        modifier = Modifier.fillMaxSize()
     ) {
         // Заголовок меню
         Row(

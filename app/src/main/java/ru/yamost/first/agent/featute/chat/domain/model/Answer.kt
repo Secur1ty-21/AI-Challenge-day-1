@@ -1,6 +1,7 @@
 package ru.yamost.first.agent.featute.chat.domain.model
 
-class Answer(
+data class Answer(
     val message: Message,
-    val usage: Usage
+    val usage: Usage,
+    val mcpError: McpError? = null
 )
