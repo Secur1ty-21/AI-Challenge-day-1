@@ -76,19 +76,26 @@ class ChatRepositoryImpl(
         }
 
         chatStorage.saveMessage(messageList.last(), sessionId)
+
+        val isHelpCommand = messageList.last().text.trim().startsWith("/help", ignoreCase = true)
+        val systemPrompt = if (isHelpCommand) {
+            getHelpSystemPrompt()
+        } else {
+            getDefaultSystemPrompt()
+        }
+
         val getAnswerResponse = runCatching {
             gigaService.getAnswer(
                 bearerToken = BEARER_FORMAT.format(tokenData.token),
                 body = GetAnswerRequest(
                     messageList = messageList.map { it.mapToData() }.toMutableList().apply {
-                        add(0, MessageDto(
-                            text = "Отвечай коротко. Если ты использовал информацию из RAG-info для ответа, обязательно укажи это в конце ответа в формате: \"Источник: RAG\". Если информация из твоих собственных знаний, укажи: \"Источник: база знаний модели\".",
-                            role = MessageRole.SYSTEM.apiLabel
-                        ))
-                        val lastMessage = last()
-                        set(lastIndex, get(lastIndex).copy(
-                            text = lastMessage.text + ragSearch
-                        ))
+                        add(0, systemPrompt)
+                        if (!isHelpCommand) {
+                            val lastMessage = last()
+                            set(lastIndex, get(lastIndex).copy(
+                                text = lastMessage.text + ragSearch
+                            ))
+                        }
                     },
                     temperature = temperature,
                     toolList = toolList
@@ -331,6 +338,66 @@ class ChatRepositoryImpl(
                 "в ответ должно прийти процентное соотношение по инвестиционным " +
                 "интсрументам в портфеле. В финальном ответе должно быть только процентное соотношение и ничего более."
         val prompt = roleState + task + formatAnswer + limit + formatFinalAnswer
+        return MessageDto(
+            text = prompt,
+            role = MessageRole.SYSTEM.apiLabel
+        )
+    }
+
+    private fun getDefaultSystemPrompt(): MessageDto {
+        return MessageDto(
+            text = "Отвечай коротко. Если ты использовал информацию из RAG-info для ответа, " +
+                    "обязательно укажи это в конце ответа в формате: \"Источник: RAG\". " +
+                    "Если информация из твоих собственных знаний, укажи: \"Источник: база знаний модели\".",
+            role = MessageRole.SYSTEM.apiLabel
+        )
+    }
+
+    private fun getHelpSystemPrompt(): MessageDto {
+        val prompt = """
+            |# РЕЖИМ ПОМОЩИ ПО ПРОЕКТУ
+            |
+            |Пользователь запросил помощь по кодовой базе или проекту. Ты - ассистент разработчика.
+            |
+            |## ТВОЯ ЗАДАЧА
+            |Помочь пользователю разобраться в проекте, найти нужную информацию в коде или документации.
+            |
+            |## ДОСТУПНЫЕ ИНСТРУМЕНТЫ - ИСПОЛЬЗУЙ ИХ ОБЯЗАТЕЛЬНО
+            |
+            |### 1. embeddings (семантический поиск)
+            |**Когда вызывать:** Для поиска информации по проекту, документации, архитектуре, описаниям функций.
+            |**Как вызвать:** action="search", query="<что ищем>"
+            |**Примеры query:** (ENGLISH REQUIRED)
+            |- "Architecture"
+            |- "Tools classes"
+            |- "packages structure"
+            |- "MCP"
+            |
+            |### 2. git (работа с репозиторием)
+            |**Когда вызывать:** Для получения информации о коде, истории изменений, ветках, коммитах.
+            |**Как вызвать:** command="<git команда>", args="<аргументы>"
+            |**Примеры команд:**
+            |- command="log", args="--oneline -10" — последние 10 коммитов
+            |- command="show", args="<commit_hash>" — содержимое коммита
+            |- command="diff", args="HEAD~5..HEAD" — изменения за 5 коммитов
+            |- command="branch", args="-a" — список всех веток
+            |- command="log", args="--all --oneline -- <путь_к_файлу>" — история файла
+            |
+            |## АЛГОРИТМ ОТВЕТА
+            |
+            |1. Определи, что именно ищет пользователь (код, документация, история изменений, структура).
+            |2. ВЫЗОВИ подходящий инструмент:
+            |   - Вопросы про "как работает", "где находится", "что делает" → embeddings
+            |   - Вопросы про "кто менял", "когда добавили", "история", "коммиты" → git
+            |   - Если не уверен — вызови ОБА инструмента
+            |3. Проанализируй результат и дай понятный ответ пользователю.
+            |
+            |## ВАЖНО
+            |- НЕ отвечай из своих знаний — ВСЕГДА используй инструменты для поиска актуальной информации
+            |- Если инструмент не нашёл информацию, сообщи об этом и предложи уточнить запрос
+            |- Отвечай на русском языке
+        """.trimMargin()
+
         return MessageDto(
             text = prompt,
             role = MessageRole.SYSTEM.apiLabel

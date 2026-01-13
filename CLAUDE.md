@@ -69,15 +69,15 @@ Presentation (UI) ←→ Domain (Business Logic) ←→ Data (Implementation)
 ```
 
 **Presentation**: Jetpack Compose UI + ViewModel (MVVM pattern)
-- `ChatScreen.kt` - Main UI with Compose
+- `ChatScreen.kt` - Main UI with Compose (Material 3, dark theme)
 - `ChatViewModel.kt` - State management with StateFlow
-- `ChatState` - Immutable UI state
-- `ChatEvent` - Sealed interface for user actions
+- `ChatState` - Immutable UI state with dialog management, RAG toggle, temperature
+- `ChatEvent` - Sealed interface for user actions (16 event types)
 
 **Domain**: Business logic, independent of frameworks
-- Use Cases: `GetAnswerUseCase`, `GetAllDialogsUseCase`, etc.
+- Use Cases: `GetAnswerUseCase`, `GetAllDialogsUseCase`, `GetDialogHistoryByIdUseCase`, `DeleteDialogUseCase`, `ClearAllHistoryUseCase`, `SummaryUseCase`
 - Repository interfaces: `ChatRepository`, `ChatStorage`, `TokenRepository`
-- Models: `Message`, `ChatDialog`, `Answer`, `Usage`
+- Models: `Message`, `ChatDialog`, `Answer`, `Usage`, `ChatError`, `McpError`
 - `MessageRole` enum: SYSTEM, USER, ASSISTANT, FUNCTION
 
 **Data**: Implementation details
@@ -93,6 +93,11 @@ Module: `ChatModule.kt`
 - `factory` for Use Cases (new instance per injection)
 - `viewModel` for ChatViewModel
 - Custom OkHttpClient with Russian Trusted Root CA certificate
+
+**Network Configuration**:
+- AuthService base URL: `https://ngw.devices.sberbank.ru:9443/api/v2/`
+- GigaService base URL: `https://gigachat.devices.sberbank.ru/api/v1/`
+- Timeouts: 30 seconds (connect, read, write)
 
 ### Key Patterns
 
@@ -153,11 +158,17 @@ Flow:
 
 ### Context Compression (Summarization)
 
-Triggered when user sends >16 messages:
-1. Takes last 18 messages
-2. `SummaryUseCase` creates compressed version via GigaChat
-3. Final history: last 2 messages + summary
-4. Reduces token usage significantly
+**Two-level compression**:
+
+1. **UseCase level** (GetAnswerUseCase): Triggered when >16 user messages
+   - Takes last 18 messages
+   - `SummaryUseCase` creates compressed version via GigaChat
+   - Returns combined response with summary and answer
+
+2. **ViewModel level**: After >3 user messages
+   - Compresses story to `[first_message, new_assistant_response]`
+   - Applied after each successful response
+   - Reduces UI state size
 
 ### File Storage Structure
 
@@ -206,16 +217,94 @@ When AI wants to use a tool:
 
 ### RAG Search
 
-Toggle via `ChatState.isRagChecked`:
+Toggle via `ChatState.isRagChecked` (enabled by default):
 - Calls `embeddings` tool with `action: "search"`, `query: {last message}`
 - Result appended to last message as `\nRAG-info\n{result}`
 - Only affects current request, not saved permanently
+- System prompt instructs AI to use RAG info when applicable and cite sources
+
+### Help Command (`/help`)
+
+When user sends `/help`, activates **project assistance mode** with a special system prompt:
+- Detects `/help` command in `ChatRepositoryImpl.getAnswer()` (case-insensitive)
+- Switches to `getHelpSystemPrompt()` which instructs LLM to use tools for codebase exploration
+- RAG search is skipped (tools are called explicitly based on user's question)
+
+**Purpose:** Help user navigate the codebase, find information about architecture, code, history.
+
+**How LLM should respond:**
+1. Analyze user's question (code structure, documentation, git history)
+2. Call appropriate tool:
+   - `embeddings` (action="search", query="...") - for "how it works", "where is", "what does"
+   - `git` (command="...", args="...") - for "who changed", "when added", "history", "commits"
+3. Return answer based on tool results, not from LLM's own knowledge
+
+### Dialog Management
+
+**UI Features**:
+- Dialog history drawer with search functionality
+- Message count badges on each dialog
+- Select dialog to load history
+- Delete individual dialogs with confirmation
+- Clear all history with confirmation
+
+**State Fields** (`ChatState`):
+- `dialogs: List<ChatDialog>` - all saved dialogs
+- `showDeleteConfirmDialog: Boolean` - delete confirmation visibility
+- `dialogToDelete: ChatDialog?` - dialog pending deletion
+- `showClearAllConfirmDialog: Boolean` - clear all confirmation visibility
+
+**Events** (`ChatEvent`):
+- `SelectDialog(dialog)` - load dialog history
+- `DeleteDialog(dialog)` - request deletion
+- `ConfirmDeleteDialog` / `DismissDeleteDialog` - confirmation actions
+- `ClearAllHistory` / `ConfirmClearAllHistory` / `DismissClearAllHistory`
+
+### Temperature Control
+
+- `ChatState.temperature: String = "0"` (stored as string for input validation)
+- Validated float input (0.0-1.0)
+- Collapsible UI panel in settings
+- Reset button to default value
+- Event: `TypeTemperature(value)`, `BtnToggleTemperatureClick`
+
+### Token Usage Display
+
+Real-time token consumption metrics shown in UI:
+- `promptTokens` - input tokens
+- `completionTokens` - generated tokens
+- `precachedTokens` - cached tokens
+- `totalTokens` - sum of all tokens
+
+Displayed in 4 columns with color coding in `ChatState.usage: Usage?`
 
 ### Error Handling
 
 - Network errors return `YaResult.Failure`
-- ViewModel shows error in UI (could be toast/snackbar)
+- ViewModel shows error in UI via Snackbar
 - All suspend functions wrapped in `runSafely` or `runCatching`
+- Specific error types: `ChatError`, `McpError` for granular handling
+
+### All ChatEvents
+
+```kotlin
+sealed interface ChatEvent {
+    data class TypeRequest(val text: String)
+    data class TypeTemperature(val text: String)
+    data object BtnToggleTemperatureClick
+    data object ToggleMenuClick
+    data object ToggleRag
+    data object BtnSendClick
+    data object BtnClearClick
+    data class SelectDialog(val dialog: ChatDialog)
+    data class DeleteDialog(val dialog: ChatDialog)
+    data object ConfirmDeleteDialog
+    data object DismissDeleteDialog
+    data object ClearAllHistory
+    data object ConfirmClearAllHistory
+    data object DismissClearAllHistory
+}
+```
 
 ## Package Structure
 
@@ -227,19 +316,30 @@ ru.yamost.first.agent/
 ├── featute/chat/
 │   ├── data/
 │   │   ├── network/        // Retrofit services + DTOs
+│   │   │   └── model/      // MessageDto, GetAnswerRequest, AiModelType
 │   │   ├── storage/        // File-based JSON storage
+│   │   │   └── model/      // ChatDialogDto, MessageDto, AccessTokenDataDto
 │   │   ├── mcp/            // MCP client + models
+│   │   │   ├── McpClient.kt
+│   │   │   ├── McpRepository.kt
+│   │   │   ├── McpApiService.kt
+│   │   │   └── McpModels.kt
 │   │   └── ChatRepositoryImpl.kt
 │   ├── domain/
 │   │   ├── api/            // Repository interfaces
-│   │   ├── model/          // Business models
+│   │   ├── model/          // Business models + error types
+│   │   │   ├── ChatError.kt    // sealed: Mcp, Network, Unknown
+│   │   │   └── McpError.kt     // sealed: ConnectionError, ServerUnavailable, etc.
 │   │   └── useCase/        // Use cases
 │   ├── presentation/
-│   │   ├── model/          // UI models (State, Event, Action)
+│   │   ├── model/          // UI models (State, Event, Action, MessageUi)
 │   │   ├── ChatViewModel.kt
 │   │   └── ChatScreen.kt
 │   └── di/ChatModule.kt
-├── ui/theme/               // Material 3 theme
+├── featute/notification/
+│   └── task/
+│       └── NotificationWorker.kt  // WorkManager for periodic notifications
+├── ui/theme/               // Material 3 theme (Color, Theme, Type, YaColor)
 ├── App.kt                  // Application class with Koin setup
 └── MainActivity.kt         // Single activity with ChatScreen
 ```
@@ -273,3 +373,34 @@ _state.update { currentState ->
 - Unit tests: Test Use Cases and ViewModels
 - Mocking: Use interfaces for repositories
 - UI tests: Compose UI testing with `@Composable` preview
+
+### AI Model Configuration
+
+Available models in `AiModelType`:
+- `LIGHT` - "GigaChat-2" (default, fastest)
+- `PRO` - "GigaChat-2-Pro" (balanced)
+- `MAX` - "GigaChat-2-Max" (most capable)
+
+### Notification Worker
+
+`NotificationWorker.kt` - WorkManager-based periodic task notifications:
+- Uses `CoroutineWorker` for async execution
+- Calls `GetAnswerUseCase` to summarize tasks via RAG
+- Prompt: "Получи список моих задач. Сделай резюме что я должен сделать за сегодня."
+- Sends notification with `NotificationCompat.Builder` and `BigTextStyle`
+- Channel ID: `ru.yamost.first.agent.notification`
+- Self-reschedules every 60 seconds
+
+### Error Types
+
+**ChatError** (sealed interface):
+- `Mcp(mcpError: McpError)` - MCP-related errors
+- `Network(throwable: Throwable)` - Network failures
+- `Unknown(throwable: Throwable)` - Unexpected errors
+
+**McpError** (sealed interface):
+- `ConnectionError` - Cannot connect to MCP server
+- `ServerUnavailable` - Server not responding
+- `InitializationFailed` - Session initialization failed
+- `ToolCallFailed` - Tool execution failed
+- `Unknown(throwable: Throwable)` - Unexpected MCP errors
